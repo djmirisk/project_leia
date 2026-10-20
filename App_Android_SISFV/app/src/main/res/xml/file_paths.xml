@@ -1,0 +1,6 @@
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--  Evidencias finales: un archivo por foto, ya con marca de agua  -->
+    <files-path name="evidencias_sisfv" path="evidencias_sisfv/"/>
+    <!--  Capturas temporales sin marca de agua; se eliminan después de procesarlas  -->
+    <cache-path name="evidencias_temporales" path="evidencias_sisfv_tmp/"/>
+</paths>

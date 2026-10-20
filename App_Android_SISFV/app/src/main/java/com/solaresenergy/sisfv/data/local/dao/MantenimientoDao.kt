@@ -1,0 +1,35 @@
+package com.solaresenergy.sisfv.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.solaresenergy.sisfv.data.local.entity.MantenimientoEntity
+
+@Dao
+interface MantenimientoDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertar(
+        mantenimiento: MantenimientoEntity
+    )
+
+    @Query("""
+        SELECT COUNT(*)
+        FROM mantenimientos_offline
+        WHERE tecnicoId = :tecnicoId
+    """)
+    suspend fun contarPorTecnico(
+        tecnicoId: Int
+    ): Int
+
+    @Query("""
+        SELECT COUNT(*)
+        FROM mantenimientos_offline
+        WHERE tecnicoId = :tecnicoId
+        AND estadoSync = 'PENDING_SYNC'
+    """)
+    suspend fun contarPendientesPorTecnico(
+        tecnicoId: Int
+    ): Int
+}
