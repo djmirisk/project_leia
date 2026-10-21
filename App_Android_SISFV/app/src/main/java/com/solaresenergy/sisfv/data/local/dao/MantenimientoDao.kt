@@ -32,4 +32,15 @@ interface MantenimientoDao {
     suspend fun contarPendientesPorTecnico(
         tecnicoId: Int
     ): Int
+
+    @Query("""
+        SELECT * FROM mantenimientos_offline
+        WHERE codigoSisfv = :codigoSisfv
+        AND tecnicoId = :tecnicoId
+        ORDER BY fechaVisita DESC
+    """)
+    suspend fun listarParaGaleria(
+        codigoSisfv: String,
+        tecnicoId: Int
+    ): List<MantenimientoEntity>
 }

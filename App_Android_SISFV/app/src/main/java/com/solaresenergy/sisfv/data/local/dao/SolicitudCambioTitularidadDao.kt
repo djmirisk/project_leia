@@ -23,4 +23,14 @@ interface SolicitudCambioTitularidadDao {
         WHERE tecnicoId = :tecnicoId AND estadoSync = 'PENDING_SYNC'
     """)
     suspend fun contarPendientesSyncPorTecnico(tecnicoId: Int): Int
+
+    @Query("""
+        SELECT * FROM solicitudes_cambio_titularidad
+        WHERE sistemaId = :sistemaId AND tecnicoId = :tecnicoId
+        ORDER BY fechaRegistro DESC
+    """)
+    suspend fun listarParaGaleria(
+        sistemaId: Int,
+        tecnicoId: Int
+    ): List<SolicitudCambioTitularidadEntity>
 }

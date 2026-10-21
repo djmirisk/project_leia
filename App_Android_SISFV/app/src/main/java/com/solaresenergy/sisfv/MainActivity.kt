@@ -21,6 +21,7 @@ import com.solaresenergy.sisfv.ui.theme.SolaresSISFVTheme
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
 import com.solaresenergy.sisfv.ui.mantenimiento.FormularioMantenimientoScreen
 import com.solaresenergy.sisfv.ui.mantenimiento.CambioTitularidadScreen
+import com.solaresenergy.sisfv.ui.galeria.GaleriaEvidenciasScreen
 
 
 class MainActivity : ComponentActivity() {
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<SistemaSisfvEntity?>(null)
                 }
                 var mostrarFormularioTitularidad by remember { mutableStateOf(false) }
+                var mostrarGaleriaEvidencias by remember { mutableStateOf(false) }
 
                 Surface(
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
@@ -121,6 +123,13 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    else if (mostrarGaleriaEvidencias) {
+                        GaleriaEvidenciasScreen(
+                            tecnico = tecnicoActual!!,
+                            onVolver = { mostrarGaleriaEvidencias = false }
+                        )
+                    }
+
                     else if (mostrarBusquedaTitularidad) {
                         IdentificarSisfvScreen(
                             tecnico = tecnicoActual!!,
@@ -176,6 +185,8 @@ class MainActivity : ComponentActivity() {
                                 mostrarBusquedaTitularidad = true
                             },
 
+                            onGaleriaClick = { mostrarGaleriaEvidencias = true },
+
                             onCerrarSesionClick = {
 
                                 loginViewModel.cerrarSesion()
@@ -188,6 +199,7 @@ class MainActivity : ComponentActivity() {
 
                                 mostrarBusquedaTitularidad = false
                                 mostrarFormularioTitularidad = false
+                                mostrarGaleriaEvidencias = false
 
                                 sistemaSeleccionado = null
                                 sistemaTitularidadSeleccionado = null

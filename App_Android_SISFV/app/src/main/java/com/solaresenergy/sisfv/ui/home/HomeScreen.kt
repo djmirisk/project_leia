@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,6 +44,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onNuevaVisitaClick: () -> Unit,
     onCambioTitularidadClick: () -> Unit,
+    onGaleriaClick: () -> Unit,
     onCerrarSesionClick: () -> Unit
 ) {
 
@@ -225,6 +227,16 @@ fun HomeScreen(
                     ) {
                         Text("CAMBIO DE TITULARIDAD", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
                     }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = onGaleriaClick,
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("CONSULTAR FOTOGRAFÍAS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SolarPrimary)
                 }
 
                 Spacer(
