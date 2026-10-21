@@ -1,6 +1,7 @@
 package com.solaresenergy.sisfv.ui.mantenimiento
 
 import android.app.Application
+import android.util.Patterns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
@@ -9,6 +10,7 @@ import com.solaresenergy.sisfv.data.local.entity.MantenimientoActividadEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoMedidorEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoFotoEntity
+import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioContactoEntity
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,8 +46,13 @@ data class FormularioMantenimientoUiState(
 )
 
 data class FormularioMantenimientoData(
+    val sistemaId: Int,
     val codigoSisfv: String,
+    val nombreUsuario: String,
+    val documentoUsuario: String?,
     val tecnicoId: Int,
+    val telefonoContactoPropuesto: String = "",
+    val correoContactoPropuesto: String = "",
 
     val tipoMantenimiento: String,
 
@@ -149,6 +156,23 @@ class FormularioMantenimientoViewModel(
                 )
 
             try {
+
+                val telefonoPropuesto = datos.telefonoContactoPropuesto.trim()
+                val correoPropuesto = datos.correoContactoPropuesto.trim()
+                if (correoPropuesto.isNotEmpty() && telefonoPropuesto.isEmpty()) {
+                    throw IllegalArgumentException(
+                        "Para solicitar un cambio de correo también debe ingresar el nuevo teléfono."
+                    )
+                }
+                if (telefonoPropuesto.isNotEmpty() &&
+                    (!telefonoPropuesto.matches(Regex("^[+0-9() .-]+$")) ||
+                            telefonoPropuesto.count(Char::isDigit) !in 7..15)
+                ) {
+                    throw IllegalArgumentException("Ingrese un teléfono válido de 7 a 15 dígitos.")
+                }
+                if (correoPropuesto.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(correoPropuesto).matches()) {
+                    throw IllegalArgumentException("Ingrese un correo electrónico válido.")
+                }
 
                 // =================================================
                 // VALIDACIÓN DE LAS 18 FOTOGRAFÍAS OBLIGATORIAS
@@ -414,6 +438,22 @@ class FormularioMantenimientoViewModel(
                     )
                 }
 
+                val solicitudCambioContacto = telefonoPropuesto.takeIf { it.isNotEmpty() }?.let {
+                    SolicitudCambioContactoEntity(
+                        id = UUID.randomUUID().toString(),
+                        sistemaId = datos.sistemaId,
+                        codigoSisfv = datos.codigoSisfv,
+                        nombreUsuario = datos.nombreUsuario,
+                        documentoUsuario = datos.documentoUsuario,
+                        tecnicoId = datos.tecnicoId,
+                        telefonoPropuesto = it,
+                        correoPropuesto = correoPropuesto.ifBlank { null },
+                        fechaRegistro = System.currentTimeMillis(),
+                        estadoRevision = "PENDIENTE_REVISION",
+                        estadoSync = "PENDING_SYNC"
+                    )
+                }
+
                 // =================================================
                 // GUARDADO EN UNA SOLA TRANSACCIÓN
                 // =================================================
@@ -436,6 +476,10 @@ class FormularioMantenimientoViewModel(
                     )
 
                     db.mantenimientoFotoDao().insertarLista(fotosParaGuardar)
+
+                    solicitudCambioContacto?.let {
+                        db.solicitudCambioContactoDao().insertar(it)
+                    }
                 }
 
                 _uiState.value =

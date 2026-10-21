@@ -9,6 +9,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
+import android.util.Patterns
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1665,8 +1666,25 @@ fun FormularioMantenimientoScreen(
                     val corrienteBateria = convertirNumero(corrienteBateriaDc)
                     val voltajeInversor = convertirNumero(voltajeInversorAc)
                     val energiaKwh = convertirNumero(energiaConsumidaKwh)
+                    val telefonoPropuesto = telefonoContactoPropuesto.trim()
+                    val correoPropuesto = correoContactoPropuesto.trim()
 
                     when {
+                        correoPropuesto.isNotEmpty() && telefonoPropuesto.isEmpty() -> {
+                            errorFormulario = "Para solicitar un cambio de correo también debe ingresar el nuevo teléfono."
+                        }
+
+                        telefonoPropuesto.isNotEmpty() &&
+                                (!telefonoPropuesto.matches(Regex("^[+0-9() .-]+$")) ||
+                                        telefonoPropuesto.count(Char::isDigit) !in 7..15) -> {
+                            errorFormulario = "Ingrese un teléfono válido de 7 a 15 dígitos."
+                        }
+
+                        correoPropuesto.isNotEmpty() &&
+                                !Patterns.EMAIL_ADDRESS.matcher(correoPropuesto).matches() -> {
+                            errorFormulario = "Ingrese un correo electrónico válido."
+                        }
+
                         voltajePanel == null || corrientePanel == null ||
                                 voltajeBateria == null || corrienteBateria == null ||
                                 voltajeInversor == null -> {
@@ -1761,8 +1779,13 @@ fun FormularioMantenimientoScreen(
                         else -> {
                             viewModel.guardarMantenimiento(
                                 FormularioMantenimientoData(
+                                    sistemaId = sistema.id,
                                     codigoSisfv = sistema.codigoSisfv,
+                                    nombreUsuario = sistema.nombreUsuario,
+                                    documentoUsuario = sistema.documentoUsuario,
                                     tecnicoId = tecnico.id,
+                                    telefonoContactoPropuesto = telefonoPropuesto,
+                                    correoContactoPropuesto = correoPropuesto,
                                     tipoMantenimiento = tipoMantenimiento,
                                     latitudGps = ubicacionGps!!.latitude,
                                     longitudGps = ubicacionGps!!.longitude,
