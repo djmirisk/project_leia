@@ -42,6 +42,7 @@ fun HomeScreen(
     tecnico: TecnicoEntity,
     viewModel: HomeViewModel = viewModel(),
     onNuevaVisitaClick: () -> Unit,
+    onCambioTitularidadClick: () -> Unit,
     onCerrarSesionClick: () -> Unit
 ) {
 
@@ -204,22 +205,26 @@ fun HomeScreen(
                 // NUEVO MANTENIMIENTO
                 // =========================================
 
-                Button(
-                    onClick = onNuevaVisitaClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SolarGreen
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-
-                    Text(
-                        text = "⚡ NUEVO MANTENIMIENTO SISFV",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    Button(
+                        onClick = onNuevaVisitaClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
+                    ) {
+                        Text("NUEVO MANTENIMIENTO", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                    }
+                    Button(
+                        onClick = onCambioTitularidadClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarPrimary)
+                    ) {
+                        Text("CAMBIO DE TITULARIDAD", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                    }
                 }
 
                 Spacer(
@@ -232,7 +237,7 @@ fun HomeScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
 
                     // MIS MANTENIMIENTOS
@@ -247,29 +252,29 @@ fun HomeScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
 
                             Text(
                                 text = "📋",
-                                fontSize = 24.sp
+                                fontSize = 20.sp
                             )
 
                             Text(
-                                text = "Mis mantenimientos",
-                                fontSize = 12.sp,
+                                text = "Mantenimientos",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolarGreen
                             )
 
                             Spacer(
-                                modifier = Modifier.height(6.dp)
+                                modifier = Modifier.height(4.dp)
                             )
 
                             Text(
                                 text = uiState.totalMantenimientos.toString(),
-                                fontSize = 26.sp,
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolarGreen
                             )
@@ -288,32 +293,48 @@ fun HomeScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
 
                             Text(
                                 text = "🔄",
-                                fontSize = 24.sp
+                                fontSize = 20.sp
                             )
 
                             Text(
-                                text = "Pendientes Sync",
-                                fontSize = 12.sp,
+                                text = "Mantenimientos por sincronizar",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolarGreen
                             )
 
                             Spacer(
-                                modifier = Modifier.height(6.dp)
+                                modifier = Modifier.height(4.dp)
                             )
 
                             Text(
                                 text = uiState.pendientesSync.toString(),
-                                fontSize = 26.sp,
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolarGreen
                             )
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(text = "🔄", fontSize = 20.sp)
+                            Text(text = "Titularidades por sincronizar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = uiState.pendientesTitularidadSync.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
                         }
                     }
                 }

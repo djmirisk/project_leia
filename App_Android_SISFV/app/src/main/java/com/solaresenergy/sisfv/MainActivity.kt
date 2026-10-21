@@ -20,6 +20,7 @@ import com.solaresenergy.sisfv.ui.mantenimiento.IdentificarSisfvScreen
 import com.solaresenergy.sisfv.ui.theme.SolaresSISFVTheme
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
 import com.solaresenergy.sisfv.ui.mantenimiento.FormularioMantenimientoScreen
+import com.solaresenergy.sisfv.ui.mantenimiento.CambioTitularidadScreen
 
 
 class MainActivity : ComponentActivity() {
@@ -48,6 +49,12 @@ class MainActivity : ComponentActivity() {
                 var mostrarFormulario by remember {
                     mutableStateOf(false)
                 }
+
+                var mostrarBusquedaTitularidad by remember { mutableStateOf(false) }
+                var sistemaTitularidadSeleccionado by remember {
+                    mutableStateOf<SistemaSisfvEntity?>(null)
+                }
+                var mostrarFormularioTitularidad by remember { mutableStateOf(false) }
 
                 Surface(
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
@@ -102,6 +109,31 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    else if (mostrarFormularioTitularidad && sistemaTitularidadSeleccionado != null) {
+                        CambioTitularidadScreen(
+                            tecnico = tecnicoActual!!,
+                            sistema = sistemaTitularidadSeleccionado!!,
+                            onVolver = { mostrarFormularioTitularidad = false },
+                            onGuardar = {
+                                mostrarFormularioTitularidad = false
+                                sistemaTitularidadSeleccionado = null
+                            }
+                        )
+                    }
+
+                    else if (mostrarBusquedaTitularidad) {
+                        IdentificarSisfvScreen(
+                            tecnico = tecnicoActual!!,
+                            tituloScreen = "Buscar SISFV para cambio de titularidad",
+                            onVolver = { mostrarBusquedaTitularidad = false },
+                            onSistemaSeleccionado = { sistema ->
+                                sistemaTitularidadSeleccionado = sistema
+                                mostrarBusquedaTitularidad = false
+                                mostrarFormularioTitularidad = true
+                            }
+                        )
+                    }
+
 // ------------------------------------------------
 // 3. IDENTIFICAR SISFV
 // ------------------------------------------------
@@ -140,6 +172,10 @@ class MainActivity : ComponentActivity() {
                                 mostrarIdentificacion = true
                             },
 
+                            onCambioTitularidadClick = {
+                                mostrarBusquedaTitularidad = true
+                            },
+
                             onCerrarSesionClick = {
 
                                 loginViewModel.cerrarSesion()
@@ -150,7 +186,11 @@ class MainActivity : ComponentActivity() {
 
                                 mostrarFormulario = false
 
+                                mostrarBusquedaTitularidad = false
+                                mostrarFormularioTitularidad = false
+
                                 sistemaSeleccionado = null
+                                sistemaTitularidadSeleccionado = null
                             }
                         )
                     }

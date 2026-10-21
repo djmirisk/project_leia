@@ -42,7 +42,8 @@ import com.solaresenergy.sisfv.ui.theme.SolarPrimary
 fun IdentificarSisfvScreen(
     tecnico: TecnicoEntity,
     onVolver: () -> Unit,
-    onSistemaSeleccionado: (SistemaSisfvEntity) -> Unit
+    onSistemaSeleccionado: (SistemaSisfvEntity) -> Unit,
+    tituloScreen: String = "Identificar SISFV"
 ) {
     val viewModel: IdentificarSisfvViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -65,7 +66,7 @@ fun IdentificarSisfvScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Identificar SISFV",
+                    text = tituloScreen,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = SolarGreen

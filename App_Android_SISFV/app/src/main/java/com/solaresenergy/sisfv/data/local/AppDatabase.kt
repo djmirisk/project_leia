@@ -21,7 +21,9 @@ import com.solaresenergy.sisfv.data.local.entity.TecnicoContratoEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoActividadEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoMedidorEntity
 import com.solaresenergy.sisfv.data.local.dao.SolicitudCambioContactoDao
+import com.solaresenergy.sisfv.data.local.dao.SolicitudCambioTitularidadDao
 import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioContactoEntity
+import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioTitularidadEntity
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
@@ -47,9 +49,10 @@ import kotlinx.coroutines.launch
         MantenimientoActividadEntity::class,
         MantenimientoMedidorEntity::class,
         MantenimientoFotoEntity::class,
-        SolicitudCambioContactoEntity::class
+        SolicitudCambioContactoEntity::class,
+        SolicitudCambioTitularidadEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -68,6 +71,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mantenimientoFotoDao(): MantenimientoFotoDao
 
     abstract fun solicitudCambioContactoDao(): SolicitudCambioContactoDao
+
+    abstract fun solicitudCambioTitularidadDao(): SolicitudCambioTitularidadDao
 
     companion object {
 
@@ -302,6 +307,38 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `solicitudes_cambio_titularidad` (
+                        `id` TEXT NOT NULL,
+                        `sistemaId` INTEGER NOT NULL,
+                        `codigoSisfv` TEXT NOT NULL,
+                        `contratoId` INTEGER NOT NULL,
+                        `proyectoId` INTEGER NOT NULL,
+                        `nombreUsuarioActual` TEXT NOT NULL,
+                        `documentoUsuarioActual` TEXT,
+                        `nombreUsuarioNuevo` TEXT NOT NULL,
+                        `documentoUsuarioNuevo` TEXT NOT NULL,
+                        `telefonoUsuarioNuevo` TEXT NOT NULL,
+                        `correoUsuarioNuevo` TEXT,
+                        `motivo` TEXT NOT NULL,
+                        `fotoDocumentoFrentePath` TEXT NOT NULL,
+                        `fotoDocumentoReversoPath` TEXT NOT NULL,
+                        `fotoHuellaPath` TEXT NOT NULL,
+                        `firmaTecnicoPath` TEXT NOT NULL,
+                        `firmaNuevoUsuarioPath` TEXT NOT NULL,
+                        `tecnicoId` INTEGER NOT NULL,
+                        `fechaRegistro` INTEGER NOT NULL,
+                        `estadoRevision` TEXT NOT NULL,
+                        `estadoSync` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
         fun getDatabase(context: Context): AppDatabase {
 
             return INSTANCE ?: synchronized(this) {
@@ -311,7 +348,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "sisfv_database"
                 )
-                .addMigrations(MIGRATION_3_4,  MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .addCallback(DatabaseCallback())
                     .build()
 
