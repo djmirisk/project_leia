@@ -24,6 +24,8 @@ import com.solaresenergy.sisfv.data.local.dao.SolicitudCambioContactoDao
 import com.solaresenergy.sisfv.data.local.dao.SolicitudCambioTitularidadDao
 import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioContactoEntity
 import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioTitularidadEntity
+import com.solaresenergy.sisfv.data.local.dao.CambioComponenteDao
+import com.solaresenergy.sisfv.data.local.entity.CambioComponenteEntity
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
@@ -50,9 +52,10 @@ import kotlinx.coroutines.launch
         MantenimientoMedidorEntity::class,
         MantenimientoFotoEntity::class,
         SolicitudCambioContactoEntity::class,
-        SolicitudCambioTitularidadEntity::class
+        SolicitudCambioTitularidadEntity::class,
+        CambioComponenteEntity::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -73,6 +76,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun solicitudCambioContactoDao(): SolicitudCambioContactoDao
 
     abstract fun solicitudCambioTitularidadDao(): SolicitudCambioTitularidadDao
+
+    abstract fun cambioComponenteDao(): CambioComponenteDao
 
     companion object {
 
@@ -339,6 +344,47 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cambios_componente` (
+                        `id` TEXT NOT NULL,
+                        `sistemaId` INTEGER NOT NULL,
+                        `codigoSisfv` TEXT NOT NULL,
+                        `contratoId` INTEGER NOT NULL,
+                        `proyectoId` INTEGER NOT NULL,
+                        `nombreUsuario` TEXT NOT NULL,
+                        `documentoUsuario` TEXT,
+                        `componente` TEXT NOT NULL,
+                        `causaFallo` TEXT NOT NULL,
+                        `fotoComponenteMaloPath` TEXT NOT NULL,
+                        `fotoSerialMaloPath` TEXT NOT NULL,
+                        `fotoComponenteNuevoPath` TEXT NOT NULL,
+                        `fotoSerialNuevoPath` TEXT NOT NULL,
+                        `nombreReceptor` TEXT NOT NULL,
+                        `documentoReceptor` TEXT NOT NULL,
+                        `receptorEsTitular` INTEGER NOT NULL,
+                        `firmaUsuarioPath` TEXT NOT NULL,
+                        `firmaTecnicoPath` TEXT NOT NULL,
+                        `tecnicoId` INTEGER NOT NULL,
+                        `fechaRegistro` INTEGER NOT NULL,
+                        `estadoRevision` TEXT NOT NULL,
+                        `estadoSync` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cambios_componente` ADD COLUMN `fotoSegundoComponenteMaloPath` TEXT")
+                db.execSQL("ALTER TABLE `cambios_componente` ADD COLUMN `fotoSegundoSerialMaloPath` TEXT")
+                db.execSQL("ALTER TABLE `cambios_componente` ADD COLUMN `fotoSegundoComponenteNuevoPath` TEXT")
+                db.execSQL("ALTER TABLE `cambios_componente` ADD COLUMN `fotoSegundoSerialNuevoPath` TEXT")
+            }
+        }
         fun getDatabase(context: Context): AppDatabase {
 
             return INSTANCE ?: synchronized(this) {
@@ -348,7 +394,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "sisfv_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .addCallback(DatabaseCallback())
                     .build()
 

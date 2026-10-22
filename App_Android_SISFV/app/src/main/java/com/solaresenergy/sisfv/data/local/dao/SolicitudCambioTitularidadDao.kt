@@ -24,6 +24,12 @@ interface SolicitudCambioTitularidadDao {
     """)
     suspend fun contarPendientesSyncPorTecnico(tecnicoId: Int): Int
 
+    @Query("SELECT COUNT(*) FROM solicitudes_cambio_titularidad WHERE tecnicoId = :tecnicoId")
+    suspend fun contarPorTecnico(tecnicoId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM solicitudes_cambio_titularidad WHERE tecnicoId = :tecnicoId AND estadoSync = 'SYNCED'")
+    suspend fun contarSincronizadosPorTecnico(tecnicoId: Int): Int
+
     @Query("""
         SELECT * FROM solicitudes_cambio_titularidad
         WHERE sistemaId = :sistemaId AND tecnicoId = :tecnicoId

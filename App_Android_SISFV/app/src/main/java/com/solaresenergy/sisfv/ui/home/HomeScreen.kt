@@ -18,24 +18,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.solaresenergy.sisfv.data.local.entity.TecnicoEntity
-import com.solaresenergy.sisfv.ui.theme.SolarAccent
 import com.solaresenergy.sisfv.ui.theme.SolarGreen
 import com.solaresenergy.sisfv.ui.theme.SolarPrimary
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.solaresenergy.sisfv.ui.theme.SolarAccent
 
 
 @Composable
@@ -44,6 +41,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onNuevaVisitaClick: () -> Unit,
     onCambioTitularidadClick: () -> Unit,
+    onCambioComponenteClick: () -> Unit,
     onGaleriaClick: () -> Unit,
     onCerrarSesionClick: () -> Unit
 ) {
@@ -60,7 +58,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             Surface(
-                color = SolarGreen,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 4.dp
             ) {
                 Row(
@@ -77,23 +75,25 @@ fun HomeScreen(
                             text = "SOLARES ENERGY GROUP",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = SolarGreen
                         )
 
                         Text(
                             text = "Sistema SISFV ZNI",
                             fontSize = 12.sp,
-                            color = SolarAccent
+                            color = SolarPrimary
                         )
                     }
 
-                    TextButton(
-                        onClick = onCerrarSesionClick
+                    Button(
+                        onClick = onCerrarSesionClick,
+                        modifier = Modifier.height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
                     ) {
                         Text(
                             text = "SALIR",
-                            color = Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -223,7 +223,7 @@ fun HomeScreen(
                         onClick = onCambioTitularidadClick,
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SolarPrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
                     ) {
                         Text("CAMBIO DE TITULARIDAD", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
                     }
@@ -231,12 +231,26 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedButton(
-                    onClick = onGaleriaClick,
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("CONSULTAR FOTOGRAFÍAS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SolarPrimary)
+                    Button(
+                        onClick = onCambioComponenteClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
+                    ) {
+                        Text("CAMBIO DE COMPONENTE", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                    }
+                    Button(
+                        onClick = onGaleriaClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
+                    ) {
+                        Text("CONSULTAR FOTOGRAFÍAS", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                    }
                 }
 
                 Spacer(
@@ -244,115 +258,40 @@ fun HomeScreen(
                 )
 
                 // =========================================
-                // INDICADORES
-                // =========================================
-
-                Row(
+                // Registros realizados y estado local de sincronización.
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-
-                    // MIS MANTENIMIENTOS
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-
-                            Text(
-                                text = "📋",
-                                fontSize = 20.sp
-                            )
-
-                            Text(
-                                text = "Mantenimientos",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolarGreen
-                            )
-
-                            Spacer(
-                                modifier = Modifier.height(4.dp)
-                            )
-
-                            Text(
-                                text = uiState.totalMantenimientos.toString(),
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolarGreen
-                            )
-                        }
+                        Text("Mantenimientos realizados", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
+                        Text(uiState.totalMantenimientos.toString(), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = SolarGreen)
                     }
+                }
 
-                    // PENDIENTES DE SINCRONIZACIÓN
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-
-                            Text(
-                                text = "🔄",
-                                fontSize = 20.sp
-                            )
-
-                            Text(
-                                text = "Mantenimientos por sincronizar",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolarGreen
-                            )
-
-                            Spacer(
-                                modifier = Modifier.height(4.dp)
-                            )
-
-                            Text(
-                                text = uiState.pendientesSync.toString(),
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolarGreen
-                            )
-                        }
-                    }
-
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(text = "🔄", fontSize = 20.sp)
-                            Text(text = "Titularidades por sincronizar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = uiState.pendientesTitularidadSync.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
-                        }
+                        Text("Sincronización", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
+                        EstadoSincronizacionCard("Mantenimientos", uiState.totalMantenimientos, uiState.mantenimientosSincronizados)
+                        EstadoSincronizacionCard("Cambios de titularidad", uiState.totalCambiosTitularidad, uiState.titularidadesSincronizadas)
+                        EstadoSincronizacionCard("Cambios de componentes", uiState.totalCambiosComponente, uiState.componentesSincronizados)
                     }
                 }
             }
-
-            // =========================================
             // ESTADO OFFLINE
             // =========================================
 
@@ -380,6 +319,56 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EstadoSincronizacionCard(
+    titulo: String,
+    total: Int,
+    sincronizados: Int
+) {
+    val fondo = when {
+        total == 0 -> Color(0xFFF5F5F5)
+        sincronizados < total -> Color(0xFFFFEBEE)
+        else -> Color(0xFFE8F5E9)
+    }
+    val sombra = when {
+        total == 0 -> Color(0x22333333)
+        sincronizados < total -> Color(0x66EF5350)
+        else -> Color(0x664CAF50)
+    }
+    val colorTexto = when {
+        total == 0 -> Color.DarkGray
+        sincronizados < total -> Color(0xFFC62828)
+        else -> SolarGreen
+    }
+    val estado = when {
+        total == 0 -> "Sin registros"
+        sincronizados < total -> "${total - sincronizados} sin sincronizar"
+        else -> "Sincronizado"
+    }
+    val forma = RoundedCornerShape(10.dp)
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(
+            elevation = 5.dp,
+            shape = forma,
+            ambientColor = sombra,
+            spotColor = sombra
+        ),
+        shape = forma,
+        colors = CardDefaults.cardColors(containerColor = fondo),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(titulo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolarPrimary)
+            Text(estado, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colorTexto)
         }
     }
 }

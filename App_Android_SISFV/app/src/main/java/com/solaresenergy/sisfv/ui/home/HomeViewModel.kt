@@ -12,8 +12,11 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val totalMantenimientos: Int = 0,
-    val pendientesSync: Int = 0,
-    val pendientesTitularidadSync: Int = 0,
+    val mantenimientosSincronizados: Int = 0,
+    val titularidadesSincronizadas: Int = 0,
+    val componentesSincronizados: Int = 0,
+    val totalCambiosTitularidad: Int = 0,
+    val totalCambiosComponente: Int = 0,
     val contratosAsignados: List<ContratoEntity> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -29,6 +32,7 @@ class HomeViewModel(
     private val tecnicoContratoDao = db.tecnicoContratoDao()
     private val contratoDao = db.contratoDao()
     private val solicitudTitularidadDao = db.solicitudCambioTitularidadDao()
+    private val cambioComponenteDao = db.cambioComponenteDao()
 
     private val _uiState = MutableStateFlow(HomeUiState())
 
@@ -49,11 +53,13 @@ class HomeViewModel(
                 val total =
                     mantenimientoDao.contarPorTecnico(tecnicoId)
 
-                val pendientesMantenimiento =
-                    mantenimientoDao.contarPendientesPorTecnico(tecnicoId)
+                val mantenimientosSincronizados = mantenimientoDao.contarSincronizadosPorTecnico(tecnicoId)
 
-                val pendientesTitularidad =
-                    solicitudTitularidadDao.contarPendientesSyncPorTecnico(tecnicoId)
+                val totalTitularidades = solicitudTitularidadDao.contarPorTecnico(tecnicoId)
+                val titularidadesSincronizadas = solicitudTitularidadDao.contarSincronizadosPorTecnico(tecnicoId)
+
+                val totalCambiosComponente = cambioComponenteDao.contarPorTecnico(tecnicoId)
+                val componentesSincronizados = cambioComponenteDao.contarSincronizadosPorTecnico(tecnicoId)
 
                 // Consultar únicamente los contratos asignados
                 // al técnico que inició sesión.
@@ -72,8 +78,11 @@ class HomeViewModel(
 
                 _uiState.value = HomeUiState(
                     totalMantenimientos = total,
-                    pendientesSync = pendientesMantenimiento,
-                    pendientesTitularidadSync = pendientesTitularidad,
+                    mantenimientosSincronizados = mantenimientosSincronizados,
+                    titularidadesSincronizadas = titularidadesSincronizadas,
+                    componentesSincronizados = componentesSincronizados,
+                    totalCambiosTitularidad = totalTitularidades,
+                    totalCambiosComponente = totalCambiosComponente,
                     contratosAsignados = contratos,
                     isLoading = false
                 )

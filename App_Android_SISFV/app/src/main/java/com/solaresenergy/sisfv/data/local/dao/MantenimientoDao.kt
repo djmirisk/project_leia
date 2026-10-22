@@ -33,6 +33,9 @@ interface MantenimientoDao {
         tecnicoId: Int
     ): Int
 
+    @Query("SELECT COUNT(*) FROM mantenimientos_offline WHERE tecnicoId = :tecnicoId AND estadoSync = 'SYNCED'")
+    suspend fun contarSincronizadosPorTecnico(tecnicoId: Int): Int
+
     @Query("""
         SELECT * FROM mantenimientos_offline
         WHERE codigoSisfv = :codigoSisfv

@@ -22,6 +22,7 @@ import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
 import com.solaresenergy.sisfv.ui.mantenimiento.FormularioMantenimientoScreen
 import com.solaresenergy.sisfv.ui.mantenimiento.CambioTitularidadScreen
 import com.solaresenergy.sisfv.ui.galeria.GaleriaEvidenciasScreen
+import com.solaresenergy.sisfv.ui.mantenimiento.CambioComponenteScreen
 
 
 class MainActivity : ComponentActivity() {
@@ -57,6 +58,10 @@ class MainActivity : ComponentActivity() {
                 }
                 var mostrarFormularioTitularidad by remember { mutableStateOf(false) }
                 var mostrarGaleriaEvidencias by remember { mutableStateOf(false) }
+                var mostrarBusquedaCambioComponente by remember { mutableStateOf(false) }
+                var sistemaCambioComponenteSeleccionado by remember { mutableStateOf<SistemaSisfvEntity?>(null) }
+                var mostrarFormularioCambioComponente by remember { mutableStateOf(false) }
+                var correctivoDesdeCambioComponente by remember { mutableStateOf(false) }
 
                 Surface(
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
@@ -88,6 +93,22 @@ class MainActivity : ComponentActivity() {
                     // ------------------------------------------------
 // 2. FORMULARIO DE MANTENIMIENTO
 // ------------------------------------------------
+                    else if (correctivoDesdeCambioComponente && sistemaSeleccionado != null) {
+                        FormularioMantenimientoScreen(
+                            tecnico = tecnicoActual!!,
+                            sistema = sistemaSeleccionado!!,
+                            onVolver = {
+                                correctivoDesdeCambioComponente = false
+                                sistemaSeleccionado = null
+                            },
+                            onGuardar = {
+                                correctivoDesdeCambioComponente = false
+                                sistemaSeleccionado = null
+                            },
+                            correctivoObligatorio = true
+                        )
+                    }
+
                     else if (mostrarFormulario && sistemaSeleccionado != null) {
 
                         FormularioMantenimientoScreen(
@@ -107,6 +128,20 @@ class MainActivity : ComponentActivity() {
                                 // Después conectaremos este botón con Room.
                                 mostrarFormulario = false
                                 sistemaSeleccionado = null
+                            }
+                        )
+                    }
+
+                    else if (mostrarFormularioCambioComponente && sistemaCambioComponenteSeleccionado != null) {
+                        CambioComponenteScreen(
+                            tecnico = tecnicoActual!!,
+                            sistema = sistemaCambioComponenteSeleccionado!!,
+                            onVolver = { mostrarFormularioCambioComponente = false },
+                            onContinuarMantenimiento = { sistema ->
+                                sistemaCambioComponenteSeleccionado = null
+                                mostrarFormularioCambioComponente = false
+                                sistemaSeleccionado = sistema
+                                correctivoDesdeCambioComponente = true
                             }
                         )
                     }
@@ -139,6 +174,19 @@ class MainActivity : ComponentActivity() {
                                 sistemaTitularidadSeleccionado = sistema
                                 mostrarBusquedaTitularidad = false
                                 mostrarFormularioTitularidad = true
+                            }
+                        )
+                    }
+
+                    else if (mostrarBusquedaCambioComponente) {
+                        IdentificarSisfvScreen(
+                            tecnico = tecnicoActual!!,
+                            tituloScreen = "Buscar SISFV para cambio de componente",
+                            onVolver = { mostrarBusquedaCambioComponente = false },
+                            onSistemaSeleccionado = { sistema ->
+                                sistemaCambioComponenteSeleccionado = sistema
+                                mostrarBusquedaCambioComponente = false
+                                mostrarFormularioCambioComponente = true
                             }
                         )
                     }
@@ -185,6 +233,8 @@ class MainActivity : ComponentActivity() {
                                 mostrarBusquedaTitularidad = true
                             },
 
+                            onCambioComponenteClick = { mostrarBusquedaCambioComponente = true },
+
                             onGaleriaClick = { mostrarGaleriaEvidencias = true },
 
                             onCerrarSesionClick = {
@@ -200,9 +250,13 @@ class MainActivity : ComponentActivity() {
                                 mostrarBusquedaTitularidad = false
                                 mostrarFormularioTitularidad = false
                                 mostrarGaleriaEvidencias = false
+                                mostrarBusquedaCambioComponente = false
+                                mostrarFormularioCambioComponente = false
+                                correctivoDesdeCambioComponente = false
 
                                 sistemaSeleccionado = null
                                 sistemaTitularidadSeleccionado = null
+                                sistemaCambioComponenteSeleccionado = null
                             }
                         )
                     }
