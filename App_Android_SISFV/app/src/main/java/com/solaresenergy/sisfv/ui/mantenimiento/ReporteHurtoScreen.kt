@@ -1,6 +1,12 @@
 package com.solaresenergy.sisfv.ui.mantenimiento
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Location
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -25,18 +32,28 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
 import com.solaresenergy.sisfv.data.local.entity.TecnicoEntity
 import com.solaresenergy.sisfv.ui.theme.SolarGreen
+import com.solaresenergy.sisfv.ui.theme.SolarPrimary
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val fotosHurto = listOf(
     "PANORAMICA_HURTO" to "Foto #1 · Panorámica del lugar donde estaba el SISFV",
@@ -66,6 +83,8 @@ fun ReporteHurtoScreen(
     onGuardar: () -> Unit,
     viewModel: FormularioMantenimientoViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val estadoUbicacion = rememberUbicacionEvidencia()
     val state by viewModel.uiState.collectAsState()
     var fotos by rememberSaveable(sistema.id, stateSaver = fotosHurtoSaver) { mutableStateOf(emptyList()) }
@@ -77,8 +96,145 @@ fun ReporteHurtoScreen(
     var firmaTecnico by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var mostrarConfirmacionSalida by rememberSaveable { mutableStateOf(false) }
+    var latitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var longitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var coordenadasManualesConfirmadas by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var ubicacionFormulario by remember(sistema.id) { mutableStateOf<Location?>(null) }
+    var errorCoordenadas by rememberSaveable { mutableStateOf<String?>(null) }
+    var camaraPermitida by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    var rutaPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var codigoPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var tituloPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var latitudPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var longitudPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var precisionPendiente by rememberSaveable { mutableStateOf<String?>(null) }
+    var coordenadasPendientesManuales by rememberSaveable { mutableStateOf(false) }
+    var procesandoFoto by rememberSaveable { mutableStateOf(false) }
+    val ubicacionManual = remember(coordenadasManualesConfirmadas, latitudManual, longitudManual) {
+        if (!coordenadasManualesConfirmadas) null else {
+            val latitud = latitudManual.toDoubleOrNull()
+            val longitud = longitudManual.toDoubleOrNull()
+            if (latitud == null || longitud == null) null else Location("manual").apply {
+                latitude = latitud
+                this.longitude = longitud
+                accuracy = 0f
+                time = System.currentTimeMillis()
+            }
+        }
+    }
 
-    BackHandler { if (!state.isSaving) mostrarConfirmacionSalida = true }
+    val solicitarPermisoCamara = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permitido ->
+        camaraPermitida = permitido
+        error = if (permitido) "Permiso de cámara concedido. Pulsa nuevamente la fotografía." else "Debes permitir el acceso a la cámara."
+    }
+
+    val tomarFoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { exito ->
+        val ruta = rutaPendiente
+        val codigo = codigoPendiente
+        val titulo = tituloPendiente
+        val latitud = latitudPendiente?.toDoubleOrNull()
+        val longitud = longitudPendiente?.toDoubleOrNull()
+        val precision = precisionPendiente?.toFloatOrNull()
+        rutaPendiente = null
+        codigoPendiente = null
+        tituloPendiente = null
+        latitudPendiente = null
+        longitudPendiente = null
+        precisionPendiente = null
+
+        val origen = ruta?.let(::File)
+        if (!exito || origen == null || codigo == null || titulo == null || latitud == null || longitud == null || precision == null || !origen.isFile || origen.length() == 0L) {
+            origen?.delete()
+            error = "La cámara no entregó una fotografía. Intenta tomarla nuevamente."
+        } else {
+            procesandoFoto = true
+            scope.launch {
+                try {
+                    val captura = withContext(Dispatchers.IO) {
+                        val fecha = origen.lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()
+                        val directorioTemporal = File(context.cacheDir, "evidencias_sisfv_tmp")
+                        val directorioFinal = File(context.filesDir, "evidencias_sisfv/reporte_hurto")
+                        if (!directorioTemporal.exists() && !directorioTemporal.mkdirs()) {
+                            throw IllegalStateException("No se pudo crear la carpeta temporal de fotografías.")
+                        }
+                        if (!directorioFinal.exists() && !directorioFinal.mkdirs()) {
+                            throw IllegalStateException("No se pudo crear la carpeta definitiva de fotografías.")
+                        }
+                        val destino = File(directorioFinal, "HURTO_${codigo}_${fecha}_marcada.jpg")
+                        generarFotoConMarcaAgua(
+                            context = context,
+                            rutaCapturaTemporal = origen.absolutePath,
+                            rutaFinal = destino.absolutePath,
+                            codigoSisfv = sistema.codigoSisfv,
+                            nui = sistema.nui,
+                            tecnicoNombre = tecnico.nombre,
+                            tecnicoId = tecnico.id,
+                            tituloFoto = titulo,
+                            fechaCaptura = fecha,
+                            latitud = latitud,
+                            longitud = longitud,
+                            precision = precision,
+                            coordenadasManuales = coordenadasPendientesManuales
+                        )
+                        if (!destino.isFile || destino.length() == 0L) {
+                            throw IllegalStateException("La fotografía marcada no se pudo guardar.")
+                        }
+                        EvidenciaFotoUbicacion(codigo, destino.absolutePath, latitud, longitud, precision, fecha)
+                    }
+                    fotos.firstOrNull { it.codigo == captura.codigo }?.ruta?.takeIf { it != captura.ruta }?.let { File(it).delete() }
+                    fotos = fotos.filterNot { it.codigo == captura.codigo } + captura
+                    error = null
+                } catch (e: Exception) {
+                    error = "No se pudo guardar la foto con marca de agua: ${e.localizedMessage ?: "error de imagen"}"
+                } finally {
+                    origen.delete()
+                    procesandoFoto = false
+                }
+            }
+        }
+    }
+
+    fun tomar(codigo: String, titulo: String) {
+        error = null
+        val ubicacion = ubicacionFormulario ?: ubicacionManual ?: estadoUbicacion.ubicacion
+        if (ubicacionFormulario == null && ubicacionManual == null && !estadoUbicacion.permisoConcedido) {
+            estadoUbicacion.solicitarPermiso()
+            error = "Permite la ubicación o ingresa y confirma las coordenadas antes de tomar la foto."
+            return
+        }
+        if (ubicacionFormulario == null && ubicacionManual == null && !ubicacionGpsReciente(ubicacion)) {
+            error = "No hay GPS reciente. Ingresa y confirma las coordenadas manualmente para continuar."
+            return
+        }
+        if (ubicacion == null) {
+            error = "Confirma las coordenadas antes de tomar la primera foto."
+            return
+        }
+        ubicacionFormulario = ubicacionFormulario ?: ubicacion
+        if (!camaraPermitida) {
+            solicitarPermisoCamara.launch(Manifest.permission.CAMERA)
+            return
+        }
+        runCatching {
+            val directorio = File(context.cacheDir, "evidencias_sisfv_tmp")
+            if (!directorio.exists() && !directorio.mkdirs()) throw IllegalStateException("No se pudo crear la carpeta temporal de fotografías.")
+            val archivo = File(directorio, "hurto_${codigo}_${System.currentTimeMillis()}_captura.jpg")
+            if (!archivo.createNewFile()) throw IllegalStateException("No se pudo preparar el archivo para la cámara.")
+            val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", archivo)
+            rutaPendiente = archivo.absolutePath
+            codigoPendiente = codigo
+            tituloPendiente = titulo
+            latitudPendiente = ubicacion.latitude.toString()
+            longitudPendiente = ubicacion.longitude.toString()
+            precisionPendiente = ubicacion.accuracy.toString()
+            coordenadasPendientesManuales = ubicacion.provider == "manual"
+            tomarFoto.launch(uri)
+        }.onFailure { error = it.localizedMessage ?: "No se pudo abrir la cámara." }
+    }
+
+    BackHandler { if (!state.isSaving && !procesandoFoto) mostrarConfirmacionSalida = true }
     LaunchedEffect(state.saveSuccess) {
         if (state.saveSuccess) {
             viewModel.limpiarEstado()
@@ -108,37 +264,80 @@ fun ReporteHurtoScreen(
     Scaffold(topBar = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("REPORTE DE HURTO", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SolarGreen)
-            TextButton(onClick = { mostrarConfirmacionSalida = true }, enabled = !state.isSaving) { Text("VOLVER", maxLines = 1) }
+            TextButton(onClick = { mostrarConfirmacionSalida = true }, enabled = !state.isSaving && !procesandoFoto) { Text("VOLVER", maxLines = 1) }
         }
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("${sistema.codigoSisfv} · ${sistema.nombreUsuario}", fontWeight = FontWeight.Bold)
             Text("Evidencias fotográficas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            fotosHurto.forEach { (codigo, titulo) ->
-                CapturaFotoTitularidad(
-                    titulo = titulo,
-                    nombreArchivo = "hurto_${sistema.id}_$codigo",
-                    rutaGuardada = fotos.firstOrNull { it.codigo == codigo }?.ruta,
-                    codigoSisfv = sistema.codigoSisfv,
-                    nui = sistema.nui,
-                    tecnico = tecnico,
-                    ubicacionActual = estadoUbicacion.ubicacion,
-                    ubicacionPermitida = estadoUbicacion.permisoConcedido,
-                    onSolicitarPermisoUbicacion = estadoUbicacion.solicitarPermiso,
-                    subdirectorio = "reporte_hurto",
-                    onFotoCapturada = { ruta, ubicacion ->
-                        val captura = EvidenciaFotoUbicacion(
-                            codigo = codigo,
-                            ruta = ruta,
-                            latitud = ubicacion.latitude,
-                            longitud = ubicacion.longitude,
-                            precision = ubicacion.accuracy,
-                            fechaCaptura = File(ruta).lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()
-                        )
-                        fotos.firstOrNull { it.codigo == codigo }?.ruta?.takeIf { it != ruta }?.let { File(it).delete() }
-                        fotos = fotos.filterNot { it.codigo == codigo } + captura
-                    }
+            if (ubicacionFormulario == null) {
+            Text(
+                when {
+                    ubicacionManual != null -> "Coordenadas manuales confirmadas; se incluirán en todas las marcas de agua."
+                    !estadoUbicacion.permisoConcedido -> "Permite GPS o confirma las coordenadas manuales para habilitar la cámara."
+                    ubicacionGpsReciente(estadoUbicacion.ubicacion) -> "GPS listo para marcar todas las fotografías."
+                    else -> "GPS buscando ubicación. También puedes ingresar coordenadas manuales."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (ubicacionManual != null || ubicacionGpsReciente(estadoUbicacion.ubicacion)) SolarPrimary else MaterialTheme.colorScheme.error
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = latitudManual,
+                    onValueChange = { latitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false; errorCoordenadas = null },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Latitud") }, placeholder = { Text("7.3345") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
+                OutlinedTextField(
+                    value = longitudManual,
+                    onValueChange = { longitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false; errorCoordenadas = null },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Longitud") }, placeholder = { Text("-76.1212") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
+            Button(
+                onClick = {
+                    val formato = Regex("^-?\\d+\\.\\d{4}$")
+                    val latitud = latitudManual.toDoubleOrNull()
+                    val longitud = longitudManual.toDoubleOrNull()
+                    if (!formato.matches(latitudManual) || !formato.matches(longitudManual) ||
+                        latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
+                    ) {
+                        errorCoordenadas = "Ingrese latitud y longitud válidas con punto y 4 decimales."
+                    } else {
+                        coordenadasManualesConfirmadas = true
+                        ubicacionFormulario = ubicacionManual
+                        errorCoordenadas = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !procesandoFoto
+            ) { Text(if (ubicacionManual != null) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
+            if (!estadoUbicacion.permisoConcedido && ubicacionManual == null) {
+                TextButton(onClick = estadoUbicacion.solicitarPermiso) { Text("PERMITIR UBICACIÓN GPS") }
+            }
+            errorCoordenadas?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } else {
+                ubicacionFormulario?.let { ubicacion ->
+                    Text("Coordenadas listas para todas las fotografÃ­as: ${"%.4f".format(ubicacion.latitude)}, ${"%.4f".format(ubicacion.longitude)}")
+                }
+            }
+            fotosHurto.forEach { (codigo, titulo) ->
+                Button(
+                    onClick = { tomar(codigo, titulo) },
+                    enabled = !procesandoFoto && !state.isSaving,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        when {
+                            procesandoFoto && codigoPendiente == codigo -> "APLICANDO MARCA DE AGUA…"
+                            fotos.any { it.codigo == codigo } -> "✓ $titulo · REPETIR"
+                            else -> "TOMAR · $titulo"
+                        }
+                    )
+                }
             }
             OutlinedTextField(
                 value = testimonio,
@@ -180,7 +379,7 @@ fun ReporteHurtoScreen(
                         firmaReportante.orEmpty(), firmaTecnico.orEmpty(), fotos.toList()
                     )
                 },
-                enabled = !state.isSaving,
+                enabled = !state.isSaving && !procesandoFoto,
                 modifier = Modifier.fillMaxWidth()
             ) { if (state.isSaving) CircularProgressIndicator() else Text("GUARDAR REPORTE DE HURTO") }
         }
