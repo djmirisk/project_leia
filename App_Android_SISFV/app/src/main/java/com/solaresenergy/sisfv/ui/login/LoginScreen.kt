@@ -5,12 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,6 +37,13 @@ fun LoginScreen(
     onLoginSuccess: (TecnicoEntity) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val documentoFocusRequester = remember { FocusRequester() }
+    val teclado = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        documentoFocusRequester.requestFocus()
+        teclado?.show()
+    }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess && uiState.tecnicoLogueado != null) {
@@ -105,6 +117,7 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -209,7 +222,9 @@ fun LoginScreen(
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number
                         ),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(documentoFocusRequester),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = SolarGreen,
                             focusedLabelColor = SolarGreen
