@@ -20,6 +20,7 @@ data class IdentificarSisfvUiState(
     val comunidadSeleccionada: String? = null,
     val veredaSeleccionada: String? = null,
     val resultados: List<SistemaSisfvEntity> = emptyList(),
+    val resultadosEfectivos: Set<Int> = emptySet(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -33,6 +34,7 @@ class IdentificarSisfvViewModel(
     private val tecnicoContratoDao = db.tecnicoContratoDao()
     private val contratoDao = db.contratoDao()
     private val sistemaSisfvDao = db.sistemaSisfvDao()
+    private var tecnicoIdActual: Int = 0
 
     private val _uiState = MutableStateFlow(
         IdentificarSisfvUiState()
@@ -47,6 +49,7 @@ class IdentificarSisfvViewModel(
     // =========================================================
 
     fun cargarContratosDelTecnico(tecnicoId: Int) {
+        tecnicoIdActual = tecnicoId
 
         viewModelScope.launch {
 
@@ -227,7 +230,8 @@ class IdentificarSisfvViewModel(
         _uiState.value = _uiState.value.copy(
             textoBusqueda = texto,
             errorMessage = null,
-            resultados = emptyList()
+            resultados = emptyList(),
+            resultadosEfectivos = emptySet()
         )
     }
 
@@ -259,6 +263,7 @@ class IdentificarSisfvViewModel(
 
             buscar(
             contratoId = contrato.id,
+            tecnicoId = tecnicoIdActual,
             texto = texto,
             comunidad = estado.comunidadSeleccionada,
             vereda = estado.veredaSeleccionada
@@ -272,6 +277,7 @@ class IdentificarSisfvViewModel(
 
     private fun buscar(
         contratoId: Int,
+        tecnicoId: Int,
         texto: String,
         comunidad: String?,
         vereda: String?
@@ -294,8 +300,13 @@ class IdentificarSisfvViewModel(
                         vereda = vereda
                     )
 
+                val efectivos = resultados.filter { sistema ->
+                    db.mantenimientoDao().tieneVisitaEfectiva(sistema.codigoSisfv, tecnicoId)
+                }.map { it.id }.toSet()
+
                 _uiState.value = _uiState.value.copy(
                     resultados = resultados,
+                    resultadosEfectivos = efectivos,
                     isLoading = false,
                     errorMessage = null
                 )
@@ -304,6 +315,7 @@ class IdentificarSisfvViewModel(
 
                 _uiState.value = _uiState.value.copy(
                     resultados = emptyList(),
+                    resultadosEfectivos = emptySet(),
                     isLoading = false,
                     errorMessage =
                         "Error realizando la búsqueda."
@@ -322,6 +334,7 @@ class IdentificarSisfvViewModel(
         _uiState.value = _uiState.value.copy(
             textoBusqueda = "",
             resultados = emptyList(),
+            resultadosEfectivos = emptySet(),
             errorMessage = null
         )
     }
@@ -347,6 +360,7 @@ class IdentificarSisfvViewModel(
                 veredaSeleccionada = null,
                 veredas = emptyList(),
                 resultados = emptyList(),
+                resultadosEfectivos = emptySet(),
                 errorMessage = null,
                 isLoading = true
             )

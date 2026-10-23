@@ -12,6 +12,7 @@ import android.os.Looper
 import android.util.Patterns
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +44,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -127,7 +131,8 @@ private suspend fun guardarFotoMedidorConMarcaAgua(
             fechaCaptura = fechaCaptura,
             latitud = ubicacion.latitude,
             longitud = ubicacion.longitude,
-            precision = ubicacion.accuracy
+            precision = ubicacion.accuracy,
+            coordenadasManuales = ubicacion.provider == "manual"
         )
         if (!archivoFinal.exists() || archivoFinal.length() == 0L) {
             throw IllegalStateException("La fotografía marcada no se pudo guardar.")
@@ -151,22 +156,73 @@ private fun firmaValida(ruta: String?): Boolean {
     return archivo.isFile && archivo.length() > 0L
 }
 
+private val fotosMantenimientoSaver = listSaver<List<FotoMantenimientoCapturada>, Bundle>(
+    save = { fotos -> fotos.map { foto ->
+        Bundle().apply {
+            putString("codigo", foto.codigoFoto)
+            putInt("orden", foto.orden)
+            putString("titulo", foto.titulo)
+            putString("ruta", foto.rutaEvidencia)
+            putLong("fecha", foto.fechaCaptura)
+            putDouble("latitud", foto.latitudGps)
+            putDouble("longitud", foto.longitudGps)
+            putFloat("precision", foto.precisionGps)
+            putString("hash", foto.hashSha256)
+        }
+    } },
+    restore = { bundles -> bundles.map { foto ->
+        FotoMantenimientoCapturada(
+            codigoFoto = foto.getString("codigo").orEmpty(),
+            orden = foto.getInt("orden"),
+            titulo = foto.getString("titulo").orEmpty(),
+            rutaEvidencia = foto.getString("ruta").orEmpty(),
+            fechaCaptura = foto.getLong("fecha"),
+            latitudGps = foto.getDouble("latitud"),
+            longitudGps = foto.getDouble("longitud"),
+            precisionGps = foto.getFloat("precision"),
+            hashSha256 = foto.getString("hash").orEmpty()
+        )
+    } }
+)
+
 @Composable
 fun FormularioMantenimientoScreen(
     tecnico: TecnicoEntity,
     sistema: SistemaSisfvEntity,
     onVolver: () -> Unit,
     onGuardar: () -> Unit,
+    correctivoObligatorio: Boolean = false,
     viewModel: FormularioMantenimientoViewModel = viewModel()
 ) {
 
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    var errorFormulario by remember { mutableStateOf<String?>(null) }
+    var errorFormulario by rememberSaveable { mutableStateOf<String?>(null) }
+    var mostrarConfirmacionSalida by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var ubicacionPermitida by remember { mutableStateOf(tienePermisoUbicacion(context)) }
     var ubicacionGps by remember { mutableStateOf<Location?>(null) }
+    var coordenadasManualesConfirmadas by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var latitudManualConfirmada by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var longitudManualConfirmada by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var errorCoordenadasManual by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(coordenadasManualesConfirmadas, latitudManualConfirmada, longitudManualConfirmada) {
+        if (coordenadasManualesConfirmadas && ubicacionGps?.provider != "manual") {
+            val latitud = latitudManualConfirmada.toDoubleOrNull()
+            val longitud = longitudManualConfirmada.toDoubleOrNull()
+            if (latitud != null && longitud != null) {
+                ubicacionGps = Location("manual").apply {
+                    latitude = latitud
+                    this.longitude = longitud
+                    accuracy = 0f
+                    time = System.currentTimeMillis()
+                }
+                ubicacionPermitida = true
+            }
+        }
+    }
 
     val solicitarPermisoUbicacionGps = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -187,6 +243,7 @@ fun FormularioMantenimientoScreen(
         if (ubicacionPermitida) {
             val receptorUbicacion = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
+                    if (coordenadasManualesConfirmadas) return
                     val anterior = ubicacionGps
                     if (anterior == null || location.time >= anterior.time || location.accuracy < anterior.accuracy) {
                         ubicacionGps = location
@@ -203,7 +260,7 @@ fun FormularioMantenimientoScreen(
                 val ultimaConocida = proveedores.mapNotNull { proveedor ->
                     try { manager.getLastKnownLocation(proveedor) } catch (_: Exception) { null }
                 }.maxByOrNull { it.time }
-                if (ultimaConocida != null) ubicacionGps = ultimaConocida
+                if (!coordenadasManualesConfirmadas && ultimaConocida != null) ubicacionGps = ultimaConocida
                 proveedores.forEach { proveedor ->
                     try {
                         if (manager.isProviderEnabled(proveedor)) {
@@ -240,10 +297,10 @@ fun FormularioMantenimientoScreen(
             }
         }
     // Datos y evidencias del medidor Excelec PPKW
-    var energiaConsumidaKwh by remember { mutableStateOf("") }
-    var evidenciaLecturaPath by remember { mutableStateOf<String?>(null) }
-    var evidenciaCodigoPath by remember { mutableStateOf<String?>(null) }
-    var fechaHoraLectura by remember { mutableStateOf<Long?>(null) }
+    var energiaConsumidaKwh by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var evidenciaLecturaPath by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var evidenciaCodigoPath by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var fechaHoraLectura by rememberSaveable(sistema.id) { mutableStateOf<Long?>(null) }
     var rutaFotoLecturaPendiente by remember { mutableStateOf<String?>(null) }
     var rutaFotoCodigoPendiente by remember { mutableStateOf<String?>(null) }
 
@@ -376,60 +433,64 @@ fun FormularioMantenimientoScreen(
         }
     }
 
+    BackHandler {
+        if (!uiState.isSaving) mostrarConfirmacionSalida = true
+    }
+
     // =========================================================
     // TIPO DE MANTENIMIENTO
     // =========================================================
 
-    var tipoMantenimiento by remember {
-        mutableStateOf("PREVENTIVO")
+    var tipoMantenimiento by rememberSaveable(sistema.id, correctivoObligatorio) {
+        mutableStateOf(if (correctivoObligatorio) "CORRECTIVO" else "PREVENTIVO")
     }
 
     // =========================================================
     // MEDICIONES ELÉCTRICAS
     // =========================================================
 
-    var voltajePanelDc by remember { mutableStateOf("") }
-    var corrientePanelDc by remember { mutableStateOf("") }
+    var voltajePanelDc by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var corrientePanelDc by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var voltajeBateriaDc by remember { mutableStateOf("") }
-    var corrienteBateriaDc by remember { mutableStateOf("") }
+    var voltajeBateriaDc by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var corrienteBateriaDc by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var voltajeInversorAc by remember { mutableStateOf("") }
+    var voltajeInversorAc by rememberSaveable(sistema.id) { mutableStateOf("") }
 
     // =========================================================
     // PROTECCIONES
     // =========================================================
 
-    var breakerVerificado by remember { mutableStateOf(false) }
-    var breakerNormal by remember { mutableStateOf(true) }
-    var breakerNovedad by remember { mutableStateOf("") }
+    var breakerVerificado by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var breakerNormal by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var breakerNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var fusibleVerificado by remember { mutableStateOf(false) }
-    var fusibleNormal by remember { mutableStateOf(true) }
-    var fusibleNovedad by remember { mutableStateOf("") }
+    var fusibleVerificado by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var fusibleNormal by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var fusibleNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var dpsVerificado by remember { mutableStateOf(false) }
-    var dpsNormal by remember { mutableStateOf(true) }
-    var dpsNovedad by remember { mutableStateOf("") }
+    var dpsVerificado by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var dpsNormal by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var dpsNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
     // =========================================================
     // TORQUE
     // =========================================================
 
-    var torqueBateria by remember { mutableStateOf(false) }
-    var torqueBateriaConforme by remember { mutableStateOf(true) }
-    var torqueBateriaNovedad by remember { mutableStateOf("") }
+    var torqueBateria by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var torqueBateriaConforme by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var torqueBateriaNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var torqueBarrajePositivo by remember { mutableStateOf(false) }
-    var torqueBarrajePositivoConforme by remember { mutableStateOf(true) }
-    var torqueBarrajePositivoNovedad by remember { mutableStateOf("") }
+    var torqueBarrajePositivo by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var torqueBarrajePositivoConforme by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var torqueBarrajePositivoNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var torqueBarrajeNegativo by remember { mutableStateOf(false) }
-    var torqueBarrajeNegativoConforme by remember { mutableStateOf(true) }
-    var torqueBarrajeNegativoNovedad by remember { mutableStateOf("") }
+    var torqueBarrajeNegativo by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var torqueBarrajeNegativoConforme by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var torqueBarrajeNegativoNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
 
-    var torqueBarrajeNeutro by remember { mutableStateOf(false) }
-    var torqueBarrajeNeutroConforme by remember { mutableStateOf(true) }
-    var torqueBarrajeNeutroNovedad by remember { mutableStateOf("") }
+    var torqueBarrajeNeutro by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var torqueBarrajeNeutroConforme by rememberSaveable(sistema.id) { mutableStateOf(true) }
+    var torqueBarrajeNeutroNovedad by rememberSaveable(sistema.id) { mutableStateOf("") }
     // =========================================================
     // =========================================================
 // MEDIDOR
@@ -437,39 +498,39 @@ fun FormularioMantenimientoScreen(
 
 // Por regulación, se asume instalado inicialmente.
 // Si no existe físicamente, el técnico debe declararlo.
-    var medidorAplica by remember {
+    var medidorAplica by rememberSaveable(sistema.id) {
         mutableStateOf(true)
     }
 
 // Estado de lectura del medidor instalado.
-    var medidorNormal by remember {
+    var medidorNormal by rememberSaveable(sistema.id) {
         mutableStateOf(true)
     }
 
-    var codigoActivo by remember {
+    var codigoActivo by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
 
 // Justificación obligatoria cuando el medidor no está instalado.
-    var motivoMedidorNoInstalado by remember {
+    var motivoMedidorNoInstalado by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
 // =========================================================
 // ACTUALIZACIÓN DE DATOS DE CONTACTO
 // =========================================================
 
-    var telefonoContactoPropuesto by remember {
+    var telefonoContactoPropuesto by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
 
-    var correoContactoPropuesto by remember {
+    var correoContactoPropuesto by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
     // Catálogo obligatorio de 18 evidencias fotográficas
-    var fotosCapturadas by remember {
+    var fotosCapturadas by rememberSaveable(sistema.id, stateSaver = fotosMantenimientoSaver) {
         mutableStateOf<List<FotoMantenimientoCapturada>>(emptyList())
     }
-    var bombilloEncendido by remember {
+    var bombilloEncendido by rememberSaveable(sistema.id) {
         mutableStateOf<Boolean?>(null)
     }
 
@@ -477,16 +538,40 @@ fun FormularioMantenimientoScreen(
     // OBSERVACIONES
     // =========================================================
 
-    var observaciones by remember {
+    var observaciones by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
 
     // Datos y firmas de la persona que recibe la visita y del técnico
-    var nombreReceptorFirma by remember { mutableStateOf("") }
-    var documentoReceptorFirma by remember { mutableStateOf("") }
-    var receptorEsTitular by remember { mutableStateOf<Boolean?>(null) }
-    var firmaUsuarioPath by remember { mutableStateOf<String?>(null) }
-    var firmaTecnicoPath by remember { mutableStateOf<String?>(null) }
+    var nombreReceptorFirma by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var documentoReceptorFirma by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var receptorEsTitular by rememberSaveable(sistema.id) { mutableStateOf<Boolean?>(null) }
+    var firmaUsuarioPath by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var firmaTecnicoPath by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+
+    if (mostrarConfirmacionSalida) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacionSalida = false },
+            title = { Text("Confirmar salida") },
+            text = { Text("¿Está seguro de salir? Eso eliminará el formulario que se está diligenciando.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarConfirmacionSalida = false
+                    fotosCapturadas.forEach { File(it.rutaEvidencia).delete() }
+                    listOfNotNull(
+                        evidenciaLecturaPath,
+                        evidenciaCodigoPath,
+                        firmaUsuarioPath,
+                        firmaTecnicoPath
+                    ).distinct().forEach { File(it).delete() }
+                    onVolver()
+                }) { Text("SALIR SIN GUARDAR") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmacionSalida = false }) { Text("CONTINUAR DILIGENCIANDO") }
+            }
+        )
+    }
 
     Scaffold(
 
@@ -510,7 +595,8 @@ fun FormularioMantenimientoScreen(
                 )
 
                 TextButton(
-                    onClick = onVolver
+                    onClick = { mostrarConfirmacionSalida = true },
+                    enabled = !uiState.isSaving
                 ) {
                     Text("VOLVER")
                 }
@@ -673,7 +759,9 @@ fun FormularioMantenimientoScreen(
                 color = SolarPrimary
             )
 
-            Row(
+            if (correctivoObligatorio) {
+                Text("Este mantenimiento correctivo completa el cambio de componente.", color = SolarPrimary)
+            } else Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
@@ -1276,6 +1364,83 @@ fun FormularioMantenimientoScreen(
                 modifier = Modifier.height(20.dp)
             )
 
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ubicación para todas las fotografías", fontWeight = FontWeight.Bold, color = SolarPrimary)
+                    Text(
+                        when {
+                            ubicacionGps?.provider == "manual" -> "Coordenadas manuales confirmadas y listas para marcar las fotos."
+                            !ubicacionPermitida -> "GPS sin permiso. Puedes ingresar las coordenadas manualmente."
+                            ubicacionGpsReciente(ubicacionGps) -> "GPS listo: ${ubicacionGps?.latitude}, ${ubicacionGps?.longitude}"
+                            else -> "GPS buscando ubicación reciente. También puedes ingresar coordenadas manuales."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = latitudManualConfirmada,
+                            onValueChange = {
+                                latitudManualConfirmada = filtrarEntradaCoordenada(it)
+                                if (coordenadasManualesConfirmadas) {
+                                    coordenadasManualesConfirmadas = false
+                                    ubicacionGps = null
+                                    ubicacionPermitida = tienePermisoUbicacion(context)
+                                }
+                                errorCoordenadasManual = null
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Latitud") },
+                            placeholder = { Text("7.3345") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                        OutlinedTextField(
+                            value = longitudManualConfirmada,
+                            onValueChange = {
+                                longitudManualConfirmada = filtrarEntradaCoordenada(it)
+                                if (coordenadasManualesConfirmadas) {
+                                    coordenadasManualesConfirmadas = false
+                                    ubicacionGps = null
+                                    ubicacionPermitida = tienePermisoUbicacion(context)
+                                }
+                                errorCoordenadasManual = null
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Longitud") },
+                            placeholder = { Text("-76.1212") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            val formato = Regex("^-?\\d+\\.\\d{4}$")
+                            val latitud = latitudManualConfirmada.toDoubleOrNull()
+                            val longitud = longitudManualConfirmada.toDoubleOrNull()
+                            if (!formato.matches(latitudManualConfirmada) || !formato.matches(longitudManualConfirmada) ||
+                                latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
+                            ) {
+                                errorCoordenadasManual = "Ingrese coordenadas válidas con punto y 4 decimales."
+                            } else {
+                                val manual = Location("manual").apply {
+                                    latitude = latitud
+                                    this.longitude = longitud
+                                    accuracy = 0f
+                                    time = System.currentTimeMillis()
+                                }
+                                coordenadasManualesConfirmadas = true
+                                ubicacionGps = manual
+                                ubicacionPermitida = true
+                                errorCoordenadasManual = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isSaving && !procesandoFotoMedidor
+                    ) { Text(if (coordenadasManualesConfirmadas) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
+                    errorCoordenadasManual?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            }
+
             // =================================================
             // 6. MEDIDOR EXCELEC PPKW
             // =================================================
@@ -1512,6 +1677,23 @@ fun FormularioMantenimientoScreen(
                             Manifest.permission.ACCESS_COARSE_LOCATION
                         )
                     )
+                },
+                onUbicacionManualConfirmada = { location ->
+                    coordenadasManualesConfirmadas = true
+                    latitudManualConfirmada = String.format(java.util.Locale.US, "%.4f", location.latitude)
+                    longitudManualConfirmada = String.format(java.util.Locale.US, "%.4f", location.longitude)
+                    ubicacionGps = location
+                    ubicacionPermitida = true
+                    errorFormulario = null
+                },
+                onCoordenadasManualesEditadas = {
+                    if (coordenadasManualesConfirmadas) {
+                        coordenadasManualesConfirmadas = false
+                        latitudManualConfirmada = ""
+                        longitudManualConfirmada = ""
+                        ubicacionGps = null
+                        ubicacionPermitida = tienePermisoUbicacion(context)
+                    }
                 },
                 guardando = uiState.isSaving,
                 modifier = Modifier.fillMaxWidth(),

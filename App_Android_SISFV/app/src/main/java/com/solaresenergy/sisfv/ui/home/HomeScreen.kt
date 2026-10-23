@@ -42,6 +42,7 @@ fun HomeScreen(
     onNuevaVisitaClick: () -> Unit,
     onCambioTitularidadClick: () -> Unit,
     onCambioComponenteClick: () -> Unit,
+    onReporteHurtoClick: () -> Unit,
     onGaleriaClick: () -> Unit,
     onCerrarSesionClick: () -> Unit
 ) {
@@ -98,6 +99,7 @@ fun HomeScreen(
                         )
                     }
                 }
+
             }
         }
     ) { padding ->
@@ -253,28 +255,43 @@ fun HomeScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onReporteHurtoClick,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolarGreen)
+                    ) {
+                        Text("REPORTE DE HURTO", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                    }
+                    Card(
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Mantenimientos realizados", fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = SolarPrimary, modifier = Modifier.weight(1f))
+                            Text(uiState.totalMantenimientos.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SolarGreen, modifier = Modifier.padding(start = 4.dp))
+                        }
+                    }
+                }
+
                 Spacer(
                     modifier = Modifier.height(16.dp)
                 )
 
                 // =========================================
                 // Registros realizados y estado local de sincronización.
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Mantenimientos realizados", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SolarPrimary)
-                        Text(uiState.totalMantenimientos.toString(), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = SolarGreen)
-                    }
-                }
-
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -367,7 +384,7 @@ private fun EstadoSincronizacionCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(titulo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolarPrimary)
+            Text(titulo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.DarkGray)
             Text(estado, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colorTexto)
         }
     }

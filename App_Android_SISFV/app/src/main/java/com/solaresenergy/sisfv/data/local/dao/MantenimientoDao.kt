@@ -18,6 +18,7 @@ interface MantenimientoDao {
         SELECT COUNT(*)
         FROM mantenimientos_offline
         WHERE tecnicoId = :tecnicoId
+        AND resultadoVisita = 'VISITA_EFECTIVA'
     """)
     suspend fun contarPorTecnico(
         tecnicoId: Int
@@ -33,7 +34,7 @@ interface MantenimientoDao {
         tecnicoId: Int
     ): Int
 
-    @Query("SELECT COUNT(*) FROM mantenimientos_offline WHERE tecnicoId = :tecnicoId AND estadoSync = 'SYNCED'")
+    @Query("SELECT COUNT(*) FROM mantenimientos_offline WHERE tecnicoId = :tecnicoId AND estadoSync = 'SYNCED' AND resultadoVisita = 'VISITA_EFECTIVA'")
     suspend fun contarSincronizadosPorTecnico(tecnicoId: Int): Int
 
     @Query("""
@@ -46,4 +47,7 @@ interface MantenimientoDao {
         codigoSisfv: String,
         tecnicoId: Int
     ): List<MantenimientoEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM mantenimientos_offline WHERE codigoSisfv = :codigoSisfv AND tecnicoId = :tecnicoId AND resultadoVisita = 'VISITA_EFECTIVA')")
+    suspend fun tieneVisitaEfectiva(codigoSisfv: String, tecnicoId: Int): Boolean
 }

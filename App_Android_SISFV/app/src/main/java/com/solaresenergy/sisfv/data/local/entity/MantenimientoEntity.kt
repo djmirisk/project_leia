@@ -62,5 +62,6 @@ data class MantenimientoEntity(
     val receptorEsTitular: Boolean? = null,
 
 // Estado del bombillo y funcionamiento del SISFV
-    val bombilloEncendido: Boolean? = null
+    val bombilloEncendido: Boolean? = null,
+    val resultadoVisita: String = "VISITA_EFECTIVA"
 )

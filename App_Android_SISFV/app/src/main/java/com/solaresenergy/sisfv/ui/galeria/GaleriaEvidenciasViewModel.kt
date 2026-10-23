@@ -22,6 +22,10 @@ data class FotoGaleria(
 )
 
 data class GrupoFotosGaleria(
+    val categoria: String,
+    val sistemaId: Int,
+    val codigoSisfv: String,
+    val nombreUsuario: String,
     val titulo: String,
     val detalle: String,
     val fecha: Long,
@@ -29,8 +33,6 @@ data class GrupoFotosGaleria(
 )
 
 data class GaleriaUiState(
-    val sistemas: List<SistemaSisfvEntity> = emptyList(),
-    val sistemaSeleccionado: SistemaSisfvEntity? = null,
     val grupos: List<GrupoFotosGaleria> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -52,92 +54,116 @@ class GaleriaEvidenciasViewModel(application: Application) : AndroidViewModel(ap
                 val sistemas = contratos.flatMap { contrato ->
                     db.sistemaSisfvDao().obtenerPorContrato(contrato.id)
                 }.distinctBy { it.id to it.contratoId }
-                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.nui ?: it.codigoSisfv })
 
-                _uiState.value = GaleriaUiState(sistemas = sistemas)
+                val grupos = sistemas.flatMap { sistema -> cargarGruposFotosSistema(sistema, tecnicoId) }
+                    .sortedWith(
+                        compareBy<GrupoFotosGaleria> { ordenCategoria(it.categoria) }
+                            .thenByDescending { it.fecha }
+                    )
+                _uiState.value = GaleriaUiState(grupos = grupos)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "No se pudieron consultar los SISFV asignados."
+                    errorMessage = e.message ?: "No se pudieron consultar las fotografÃ­as guardadas."
                 )
             }
         }
     }
 
-    fun seleccionarSistema(sistema: SistemaSisfvEntity, tecnicoId: Int) {
-        viewModelScope.launch {
-            val perteneceAlTecnico = _uiState.value.sistemas.any {
-                it.id == sistema.id && it.contratoId == sistema.contratoId
-            }
-            if (!perteneceAlTecnico) {
-                _uiState.value = _uiState.value.copy(errorMessage = "El SISFV no pertenece a un contrato asignado a este técnico.")
-                return@launch
-            }
+    private suspend fun cargarGruposFotosSistema(
+        sistema: SistemaSisfvEntity,
+        tecnicoId: Int
+    ): List<GrupoFotosGaleria> {
+        val grupos = mutableListOf<GrupoFotosGaleria>()
+        val referenciaSistema = "${sistema.codigoSisfv} · ${sistema.nombreUsuario}"
 
-            _uiState.value = _uiState.value.copy(
-                sistemaSeleccionado = sistema,
-                grupos = emptyList(),
-                isLoading = true,
-                errorMessage = null
-            )
-            try {
-                val grupos = mutableListOf<GrupoFotosGaleria>()
-                val mantenimientos = db.mantenimientoDao().listarParaGaleria(sistema.codigoSisfv, tecnicoId)
-                mantenimientos.forEach { mantenimiento ->
-                    val fotos = db.mantenimientoFotoDao()
-                        .listarPorMantenimiento(mantenimiento.id)
-                        .map { foto ->
-                            val ruta = foto.rutaConMarcaAgua?.takeIf { it.isNotBlank() } ?: foto.rutaOriginal
-                            FotoGaleria(
-                                titulo = foto.titulo,
-                                ruta = ruta,
-                                fecha = foto.fechaCaptura,
-                                disponible = File(ruta).isFile
-                            )
-                        }
-                    if (fotos.isNotEmpty()) {
-                        grupos += GrupoFotosGaleria(
-                            titulo = "Mantenimiento ${mantenimiento.tipoMantenimiento}",
-                            detalle = "Registrado el ${fechaLegible(mantenimiento.fechaVisita)}",
-                            fecha = mantenimiento.fechaVisita,
-                            fotos = fotos
-                        )
-                    }
+        val mantenimientos = db.mantenimientoDao().listarParaGaleria(sistema.codigoSisfv, tecnicoId)
+        mantenimientos.forEach { mantenimiento ->
+            val fotos = db.mantenimientoFotoDao()
+                .listarPorMantenimiento(mantenimiento.id)
+                .mapNotNull { foto ->
+                    val ruta = foto.rutaConMarcaAgua?.takeIf { it.isNotBlank() } ?: foto.rutaOriginal
+                    if (!File(ruta).isFile) return@mapNotNull null
+                    FotoGaleria(foto.titulo, ruta, foto.fechaCaptura, true)
                 }
-
-                db.solicitudCambioTitularidadDao()
-                    .listarParaGaleria(sistema.id, tecnicoId)
-                    .forEach { solicitud ->
-                        val fotos = listOf(
-                            "Documento · frente" to solicitud.fotoDocumentoFrentePath,
-                            "Documento · reverso" to solicitud.fotoDocumentoReversoPath,
-                            "Huella dactilar" to solicitud.fotoHuellaPath
-                        ).map { (titulo, ruta) ->
-                            FotoGaleria(titulo, ruta, solicitud.fechaRegistro, File(ruta).isFile)
-                        }
-                        grupos += GrupoFotosGaleria(
-                            titulo = "Solicitud de titularidad",
-                            detalle = "${fechaLegible(solicitud.fechaRegistro)} · Nuevo usuario: ${solicitud.nombreUsuarioNuevo} · ${solicitud.estadoRevision}",
-                            fecha = solicitud.fechaRegistro,
-                            fotos = fotos
-                        )
-                    }
-
-                _uiState.value = _uiState.value.copy(
-                    grupos = grupos.sortedByDescending { it.fecha },
-                    isLoading = false
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = e.message ?: "No se pudieron cargar las fotografías locales."
+            if (fotos.isNotEmpty()) {
+                val categoria = "Mantenimientos"
+                val titulo = when (mantenimiento.tipoMantenimiento) {
+                    "REPORTE_HURTO" -> "Hurto reportado"
+                    "VISITA_NO_EFECTIVA" -> "Mantenimiento no efectivo"
+                    else -> "Mantenimiento ${mantenimiento.tipoMantenimiento}"
+                }
+                grupos += GrupoFotosGaleria(
+                    categoria = categoria,
+                    sistemaId = sistema.id,
+                    codigoSisfv = sistema.codigoSisfv,
+                    nombreUsuario = sistema.nombreUsuario,
+                    titulo = titulo,
+                    detalle = "$referenciaSistema · ${fechaLegible(mantenimiento.fechaVisita)}",
+                    fecha = mantenimiento.fechaVisita,
+                    fotos = fotos
                 )
             }
         }
+
+        db.solicitudCambioTitularidadDao().listarParaGaleria(sistema.id, tecnicoId).forEach { solicitud ->
+            val fotos = listOf(
+                "Documento · frente" to solicitud.fotoDocumentoFrentePath,
+                "Documento · reverso" to solicitud.fotoDocumentoReversoPath,
+                "Huella dactilar" to solicitud.fotoHuellaPath
+            ).mapNotNull { (titulo, ruta) ->
+                if (!File(ruta).isFile) return@mapNotNull null
+                FotoGaleria(titulo, ruta, solicitud.fechaRegistro, true)
+            }
+            if (fotos.isNotEmpty()) {
+                grupos += GrupoFotosGaleria(
+                    categoria = "Cambios de titularidad",
+                    sistemaId = sistema.id,
+                    codigoSisfv = sistema.codigoSisfv,
+                    nombreUsuario = sistema.nombreUsuario,
+                    titulo = "Solicitud de titularidad",
+                    detalle = "$referenciaSistema · ${fechaLegible(solicitud.fechaRegistro)} · ${solicitud.estadoRevision}",
+                    fecha = solicitud.fechaRegistro,
+                    fotos = fotos
+                )
+            }
+        }
+
+        db.cambioComponenteDao().listarParaGaleria(sistema.id, tecnicoId).forEach { cambio ->
+            val esPaneles = cambio.componente == "Paneles"
+            val fotos = listOfNotNull(
+                (if (esPaneles) "Panel viejo 1" else "Componente malo") to cambio.fotoComponenteMaloPath,
+                (if (esPaneles) "Serial del panel viejo 1" else "Serial del componente malo") to cambio.fotoSerialMaloPath,
+                (if (esPaneles) "Panel nuevo 1" else "Componente nuevo") to cambio.fotoComponenteNuevoPath,
+                (if (esPaneles) "Serial del panel nuevo 1" else "Serial del componente nuevo") to cambio.fotoSerialNuevoPath,
+                cambio.fotoSegundoComponenteMaloPath?.let { (if (esPaneles) "Panel viejo 2" else "Segundo componente malo") to it },
+                cambio.fotoSegundoSerialMaloPath?.let { (if (esPaneles) "Serial del panel viejo 2" else "Segundo serial malo") to it },
+                cambio.fotoSegundoComponenteNuevoPath?.let { (if (esPaneles) "Panel nuevo 2" else "Segundo componente nuevo") to it },
+                cambio.fotoSegundoSerialNuevoPath?.let { (if (esPaneles) "Serial del panel nuevo 2" else "Segundo serial nuevo") to it }
+            ).mapNotNull { (titulo, ruta) ->
+                if (!File(ruta).isFile) return@mapNotNull null
+                FotoGaleria(titulo, ruta, cambio.fechaRegistro, true)
+            }
+            if (fotos.isNotEmpty()) {
+                grupos += GrupoFotosGaleria(
+                    categoria = "Cambios de componentes",
+                    sistemaId = sistema.id,
+                    codigoSisfv = sistema.codigoSisfv,
+                    nombreUsuario = sistema.nombreUsuario,
+                    titulo = "Cambio de ${cambio.componente}",
+                    detalle = "$referenciaSistema · ${fechaLegible(cambio.fechaRegistro)} · ${cambio.estadoRevision} · ${cambio.causaFallo}",
+                    fecha = cambio.fechaRegistro,
+                    fotos = fotos
+                )
+            }
+        }
+        return grupos
     }
 
-    fun volverALista() {
-        _uiState.value = _uiState.value.copy(sistemaSeleccionado = null, grupos = emptyList(), errorMessage = null)
+    private fun ordenCategoria(categoria: String): Int = when (categoria) {
+        "Cambios de titularidad" -> 0
+        "Cambios de componentes" -> 1
+        else -> 2
     }
 
     private fun fechaLegible(fecha: Long): String =

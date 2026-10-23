@@ -11,6 +11,8 @@ import com.solaresenergy.sisfv.data.local.entity.MantenimientoEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoMedidorEntity
 import com.solaresenergy.sisfv.data.local.entity.MantenimientoFotoEntity
 import com.solaresenergy.sisfv.data.local.entity.SolicitudCambioContactoEntity
+import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
+import com.solaresenergy.sisfv.data.local.entity.TecnicoEntity
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +40,17 @@ private val CODIGOS_FOTOS_OBLIGATORIAS = setOf(
     "VOLTAJE_PANEL_HERRAMIENTA",
     "VOLTAJE_TOMACORRIENTE_HERRAMIENTA"
 )
+
+private fun tituloEvidenciaHurto(codigo: String): String = when (codigo) {
+    "PANORAMICA_HURTO" -> "Fotografía panorámica donde estaba instalado el SISFV"
+    "POSTE_PANELES" -> "Evidencia #2 · Poste y paneles"
+    "SPT_PUESTA_TIERRA" -> "Evidencia #4 · Sistema de puesta a tierra"
+    "GABINETE_CERRADO" -> "Evidencia #5 · Gabinete cerrado"
+    "TABLERO_DISTRIBUCION_AC" -> "Evidencia #12 · Tablero de distribución AC"
+    "INTERRUPTOR_LUCES" -> "Evidencia #13 · Interruptor de luces"
+    "TOMACORRIENTES" -> "Evidencia #14 · Tomacorrientes"
+    else -> "Evidencia #15 · Bombillo"
+}
 
 data class FormularioMantenimientoUiState(
     val isSaving: Boolean = false,
@@ -143,6 +156,170 @@ class FormularioMantenimientoViewModel(
 
     val uiState: StateFlow<FormularioMantenimientoUiState> =
         _uiState.asStateFlow()
+
+    fun guardarVisitaNoEfectiva(
+        sistema: SistemaSisfvEntity,
+        tecnico: TecnicoEntity,
+        observaciones: String,
+        firmaTecnicoPath: String,
+        evidencias: List<EvidenciaFotoUbicacion>
+    ) {
+        viewModelScope.launch {
+            _uiState.value = FormularioMantenimientoUiState(isSaving = true)
+            try {
+                require(observaciones.isNotBlank()) { "Diligencie las observaciones de la visita." }
+                require(File(firmaTecnicoPath).isFile && File(firmaTecnicoPath).length() > 0L) {
+                    "Debe guardar la firma del técnico."
+                }
+                require(evidencias.map { it.codigo }.toSet().containsAll(
+                    listOf("FOTO_PANORAMICA_VIVIENDA_SOLA", "FOTOGRAFIA_EVIDENCIA_USUARIO_AUSENTE")
+                )) { "Debe guardar la panorámica y la foto de la puerta cerrada." }
+
+                val id = UUID.randomUUID().toString()
+                val mantenimiento = MantenimientoEntity(
+                    id = id,
+                    codigoSisfv = sistema.codigoSisfv,
+                    tecnicoId = tecnico.id,
+                    tipoMantenimiento = "VISITA_NO_EFECTIVA",
+                    latitudGps = evidencias.first().latitud,
+                    longitudGps = evidencias.first().longitud,
+                    precisionGps = evidencias.first().precision,
+                    voltajePanelDc = 0.0,
+                    corrientePanelDc = 0.0,
+                    voltajeBateriaDc = 0.0,
+                    corrienteBateriaDc = 0.0,
+                    voltajeInversorAc = 0.0,
+                    breakersStatus = "NO_APLICA",
+                    fusiblesStatus = "NO_APLICA",
+                    dpsStatus = "NO_APLICA",
+                    torqueBaterias = "NO_APLICA",
+                    torqueBarrajes = "NO_APLICA",
+                    observaciones = observaciones.trim(),
+                    firmaTecnicoPath = firmaTecnicoPath,
+                    estadoSync = "PENDING_SYNC",
+                    resultadoVisita = "VISITA_NO_EFECTIVA"
+                )
+                evidencias.forEach { evidencia ->
+                    require(File(evidencia.ruta).isFile && File(evidencia.ruta).length() > 0L) {
+                        "Una fotografía de la visita no está disponible. Vuelva a tomarla."
+                    }
+                    require(evidencia.latitud in -90.0..90.0 && evidencia.longitud in -180.0..180.0) {
+                        "Faltan coordenadas válidas en una fotografía."
+                    }
+                }
+                val fotos = evidencias.mapIndexed { index, evidencia ->
+                    MantenimientoFotoEntity(
+                        mantenimientoId = id,
+                        codigoFoto = evidencia.codigo,
+                        orden = index + 1,
+                        titulo = if (evidencia.codigo == "FOTO_PANORAMICA_VIVIENDA_SOLA") "Foto panorámica vivienda sola" else "Fotografía evidencia usuario ausente",
+                        rutaOriginal = evidencia.ruta,
+                        rutaConMarcaAgua = evidencia.ruta,
+                        fechaCaptura = evidencia.fechaCaptura,
+                        estadoSync = "PENDING_SYNC",
+                        latitudGps = evidencia.latitud,
+                        longitudGps = evidencia.longitud,
+                        precisionGps = evidencia.precision
+                    )
+                }
+                db.withTransaction {
+                    mantenimientoDao.insertar(mantenimiento)
+                    db.mantenimientoFotoDao().insertarLista(fotos)
+                }
+                _uiState.value = FormularioMantenimientoUiState(saveSuccess = true)
+            } catch (e: Exception) {
+                _uiState.value = FormularioMantenimientoUiState(errorMessage = e.message ?: "No fue posible guardar la visita.")
+            }
+        }
+    }
+
+    fun guardarReporteHurto(
+        sistema: SistemaSisfvEntity,
+        tecnico: TecnicoEntity,
+        testimonio: String,
+        nombreReportante: String,
+        documentoReportante: String,
+        reportanteEsTitular: Boolean,
+        firmaReportantePath: String,
+        firmaTecnicoPath: String,
+        evidencias: List<EvidenciaFotoUbicacion>
+    ) {
+        viewModelScope.launch {
+            _uiState.value = FormularioMantenimientoUiState(isSaving = true)
+            try {
+                require(testimonio.isNotBlank()) { "Describa el testimonio de quien reporta el hurto." }
+                require(nombreReportante.isNotBlank() && documentoReportante.isNotBlank()) {
+                    "Ingrese el nombre y documento de quien reporta el hurto."
+                }
+                listOf(firmaReportantePath to "firma de quien reporta", firmaTecnicoPath to "firma del técnico")
+                    .forEach { (path, label) ->
+                        require(File(path).isFile && File(path).length() > 0L) { "Debe guardar la $label." }
+                    }
+                val requeridas = setOf(
+                    "PANORAMICA_HURTO", "POSTE_PANELES", "SPT_PUESTA_TIERRA", "GABINETE_CERRADO",
+                    "TABLERO_DISTRIBUCION_AC", "INTERRUPTOR_LUCES", "TOMACORRIENTES", "BOMBILLO_ENCENDIDO"
+                )
+                require(evidencias.map { it.codigo }.toSet().containsAll(requeridas)) {
+                    "Complete la panorámica y las fotografías 2, 4, 5, 12, 13, 14 y 15."
+                }
+                evidencias.forEach { evidencia ->
+                    require(File(evidencia.ruta).isFile && File(evidencia.ruta).length() > 0L) { "Una fotografía no está disponible. Vuelva a tomarla." }
+                    require(evidencia.latitud in -90.0..90.0 && evidencia.longitud in -180.0..180.0) { "Faltan coordenadas válidas en una fotografía." }
+                }
+
+                val id = UUID.randomUUID().toString()
+                val registro = MantenimientoEntity(
+                    id = id,
+                    codigoSisfv = sistema.codigoSisfv,
+                    tecnicoId = tecnico.id,
+                    tipoMantenimiento = "REPORTE_HURTO",
+                    latitudGps = evidencias.first().latitud,
+                    longitudGps = evidencias.first().longitud,
+                    precisionGps = evidencias.first().precision,
+                    voltajePanelDc = 0.0,
+                    corrientePanelDc = 0.0,
+                    voltajeBateriaDc = 0.0,
+                    corrienteBateriaDc = 0.0,
+                    voltajeInversorAc = 0.0,
+                    breakersStatus = "NO_APLICA",
+                    fusiblesStatus = "NO_APLICA",
+                    dpsStatus = "NO_APLICA",
+                    torqueBaterias = "NO_APLICA",
+                    torqueBarrajes = "NO_APLICA",
+                    observaciones = testimonio.trim(),
+                    firmaUsuarioPath = firmaReportantePath,
+                    firmaTecnicoPath = firmaTecnicoPath,
+                    estadoSync = "PENDING_SYNC",
+                    nombreReceptorFirma = nombreReportante.trim(),
+                    documentoReceptorFirma = documentoReportante.trim(),
+                    receptorEsTitular = reportanteEsTitular,
+                    resultadoVisita = "REPORTE_HURTO"
+                )
+                val fotos = evidencias.mapIndexed { index, evidencia ->
+                    MantenimientoFotoEntity(
+                        mantenimientoId = id,
+                        codigoFoto = evidencia.codigo,
+                        orden = index + 1,
+                        titulo = tituloEvidenciaHurto(evidencia.codigo),
+                        rutaOriginal = evidencia.ruta,
+                        rutaConMarcaAgua = evidencia.ruta,
+                        fechaCaptura = evidencia.fechaCaptura,
+                        estadoSync = "PENDING_SYNC",
+                        latitudGps = evidencia.latitud,
+                        longitudGps = evidencia.longitud,
+                        precisionGps = evidencia.precision
+                    )
+                }
+                db.withTransaction {
+                    mantenimientoDao.insertar(registro)
+                    db.mantenimientoFotoDao().insertarLista(fotos)
+                }
+                _uiState.value = FormularioMantenimientoUiState(saveSuccess = true)
+            } catch (e: Exception) {
+                _uiState.value = FormularioMantenimientoUiState(errorMessage = e.message ?: "No fue posible guardar el reporte de hurto.")
+            }
+        }
+    }
 
     fun guardarMantenimiento(
         datos: FormularioMantenimientoData

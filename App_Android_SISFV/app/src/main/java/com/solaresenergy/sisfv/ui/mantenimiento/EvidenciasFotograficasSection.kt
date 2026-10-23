@@ -25,14 +25,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -83,6 +87,18 @@ internal const val MAX_ANTIGUEDAD_GPS_MS = 60 * 60 * 1000L
 internal fun ubicacionGpsReciente(location: Location?): Boolean =
     location != null && System.currentTimeMillis() - location.time in 0L..MAX_ANTIGUEDAD_GPS_MS
 
+internal fun filtrarEntradaCoordenada(entrada: String): String {
+    val resultado = StringBuilder()
+    entrada.forEach { caracter ->
+        when {
+            caracter in '0'..'9' && resultado.length < 8 -> resultado.append(caracter)
+            caracter == '.' && '.' !in resultado && resultado.length < 8 -> resultado.append(caracter)
+            caracter == '-' && resultado.isEmpty() && resultado.length < 8 -> resultado.append(caracter)
+        }
+    }
+    return resultado.toString()
+}
+
 private fun tienePermisoCamara(context: Context): Boolean =
     ContextCompat.checkSelfPermission(
         context,
@@ -102,6 +118,8 @@ fun EvidenciasFotograficasSection(
     ubicacionActual: Location?,
     ubicacionPermitida: Boolean,
     onSolicitarPermisoUbicacion: () -> Unit,
+    onUbicacionManualConfirmada: (Location) -> Unit,
+    onCoordenadasManualesEditadas: () -> Unit,
     guardando: Boolean = false,
     modifier: Modifier = Modifier,
     medidorInstalado: Boolean,
@@ -115,6 +133,9 @@ fun EvidenciasFotograficasSection(
     var fotoPendiente by remember { mutableStateOf<FotoRequerida?>(null) }
     var rutaPendiente by remember { mutableStateOf<String?>(null) }
     var ubicacionCapturaPendiente by remember { mutableStateOf<Location?>(null) }
+    var latitudManual by rememberSaveable(codigoSisfv) { mutableStateOf("") }
+    var longitudManual by rememberSaveable(codigoSisfv) { mutableStateOf("") }
+    var errorCoordenadasManuales by rememberSaveable(codigoSisfv) { mutableStateOf<String?>(null) }
 
     val solicitarPermisoCamara = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -167,7 +188,8 @@ fun EvidenciasFotograficasSection(
                             fechaCaptura = fechaCaptura,
                             latitud = ubicacion.latitude,
                             longitud = ubicacion.longitude,
-                            precision = ubicacion.accuracy
+                            precision = ubicacion.accuracy,
+                            coordenadasManuales = ubicacion.provider == "manual"
                         )
                         val hash = calcularSha256(File(rutaFinal))
                         FotoMantenimientoCapturada(
@@ -273,6 +295,7 @@ fun EvidenciasFotograficasSection(
             Text("Fotografías registradas: $cantidad de 18")
             Text(
                 text = when {
+                    ubicacionActual?.provider == "manual" -> "Coordenadas manuales confirmadas."
                     !ubicacionPermitida -> "GPS: permiso pendiente."
                     ubicacionReciente -> "GPS listo: ±${ubicacionActual?.accuracy?.let { String.format(Locale.getDefault(), "%.0f", it) } ?: "?"} m"
                     else -> "GPS buscando posición reciente… mantén la ubicación activada."
@@ -281,7 +304,71 @@ fun EvidenciasFotograficasSection(
                 style = MaterialTheme.typography.bodySmall
             )
             Text(
-                "Cada fotografía se conserva como un único archivo definitivo con marca de agua. La marca prioriza el NUI e incluye código SISFV, técnico, fecha/hora, coordenadas y precisión GPS.",
+                "Si la tablet no tiene GPS, ingrese latitud y longitud en grados decimales, con punto y exactamente 4 decimales.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = latitudManual,
+                    onValueChange = {
+                        latitudManual = filtrarEntradaCoordenada(it)
+                        errorCoordenadasManuales = null
+                        onCoordenadasManualesEditadas()
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Latitud") },
+                    placeholder = { Text("7.3345") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = longitudManual,
+                    onValueChange = {
+                        longitudManual = filtrarEntradaCoordenada(it)
+                        errorCoordenadasManuales = null
+                        onCoordenadasManualesEditadas()
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Longitud") },
+                    placeholder = { Text("-76.1212") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
+            Button(
+                onClick = {
+                    val formato = Regex("^-?\\d+\\.\\d{4}$")
+                    val latitud = latitudManual.toDoubleOrNull()
+                    val longitud = longitudManual.toDoubleOrNull()
+                    if (!formato.matches(latitudManual) || !formato.matches(longitudManual) ||
+                        latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
+                    ) {
+                        errorCoordenadasManuales = "Ingrese coordenadas válidas con punto y exactamente 4 decimales (ej. 7.3345 y -76.1212)."
+                    } else {
+                        val location = Location("manual").apply {
+                            latitude = latitud
+                            this.longitude = longitud
+                            accuracy = 0f
+                            time = System.currentTimeMillis()
+                        }
+                        onUbicacionManualConfirmada(location)
+                        errorCoordenadasManuales = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !guardando && !procesandoFoto
+            ) {
+                Text(if (ubicacionActual?.provider == "manual") "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS")
+            }
+            errorCoordenadasManuales?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                if (ubicacionActual?.provider == "manual") {
+                    "Cada foto se guarda con marca de agua, código SISFV, técnico, fecha/hora y coordenadas ingresadas manualmente."
+                } else {
+                    "Cada foto se guarda con marca de agua, código SISFV, técnico, fecha/hora y coordenadas GPS con precisión."
+                },
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -368,7 +455,8 @@ internal fun generarFotoConMarcaAgua(
     fechaCaptura: Long,
     latitud: Double,
     longitud: Double,
-    precision: Float
+    precision: Float,
+    coordenadasManuales: Boolean = precision == 0f
 ) {
     val archivoCaptura = File(rutaCapturaTemporal)
     val archivoFinal = File(rutaFinal)
@@ -464,7 +552,11 @@ internal fun generarFotoConMarcaAgua(
         "TECNICO: $tecnicoNombre (ID $tecnicoId)",
         "EVIDENCIA: $tituloFoto",
         "FECHA/HORA: ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale("es", "CO")).format(Date(fechaCaptura))}",
-        "GPS: ${String.format(Locale.US, "%.6f", latitud)}, ${String.format(Locale.US, "%.6f", longitud)}  |  PRECISION: ±${String.format(Locale.getDefault(), "%.0f", precision)} m"
+        if (coordenadasManuales) {
+            "COORDENADAS MANUALES: ${String.format(Locale.US, "%.4f", latitud)}, ${String.format(Locale.US, "%.4f", longitud)}"
+        } else {
+            "GPS: ${String.format(Locale.US, "%.6f", latitud)}, ${String.format(Locale.US, "%.6f", longitud)}  |  PRECISION: ±${String.format(Locale.getDefault(), "%.0f", precision)} m"
+        }
     )
     val texto = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE

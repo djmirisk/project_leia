@@ -9,6 +9,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,24 +66,25 @@ fun CambioComponenteScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val componentes = listOf("Paneles", "Controlador", "Inversor", "Medidor", "Batería")
-    var componente by remember(sistema.id) { mutableStateOf("") }
-    var causa by remember(sistema.id) { mutableStateOf("") }
-    var nombreReceptor by remember(sistema.id) { mutableStateOf("") }
-    var documentoReceptor by remember(sistema.id) { mutableStateOf("") }
-    var receptorEsTitular by remember(sistema.id) { mutableStateOf<Boolean?>(null) }
-    var fotoMalo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var serialMalo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var fotoNuevo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var serialNuevo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var segundoPanelMalo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var segundoSerialMalo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var segundoPanelNuevo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var segundoSerialNuevo by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var firmaUsuario by remember(sistema.id) { mutableStateOf<String?>(null) }
-    var firmaTecnico by remember(sistema.id) { mutableStateOf<String?>(null) }
+    var componente by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var causa by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var nombreReceptor by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var documentoReceptor by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var receptorEsTitular by rememberSaveable(sistema.id) { mutableStateOf<Boolean?>(null) }
+    var fotoMalo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var serialMalo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var fotoNuevo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var serialNuevo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var segundoPanelMalo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var segundoSerialMalo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var segundoPanelNuevo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var segundoSerialNuevo by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var firmaUsuario by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var firmaTecnico by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
+    var mostrarConfirmacionSalida by rememberSaveable(sistema.id) { mutableStateOf(false) }
     var ubicacionPermitida by remember { mutableStateOf(tienePermisoUbicacionComponente(context)) }
     var ubicacionGps by remember { mutableStateOf<Location?>(null) }
-    var mostrarConfirmacion by remember { mutableStateOf(false) }
+    var mostrarConfirmacion by rememberSaveable(sistema.id) { mutableStateOf(false) }
 
     val solicitarPermisoUbicacion = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -118,6 +121,29 @@ fun CambioComponenteScreen(
 
     LaunchedEffect(sistema.id) { viewModel.limpiarEstado() }
     LaunchedEffect(uiState.saveSuccess) { if (uiState.saveSuccess) mostrarConfirmacion = true }
+    BackHandler { if (!uiState.isSaving && !mostrarConfirmacion) mostrarConfirmacionSalida = true }
+
+    if (mostrarConfirmacionSalida) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacionSalida = false },
+            title = { Text("Confirmar salida") },
+            text = { Text("¿Está seguro de salir? Eso eliminará el formulario que se está diligenciando.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    mostrarConfirmacionSalida = false
+                    listOfNotNull(
+                        fotoMalo, serialMalo, fotoNuevo, serialNuevo,
+                        segundoPanelMalo, segundoSerialMalo, segundoPanelNuevo, segundoSerialNuevo,
+                        firmaUsuario, firmaTecnico
+                    ).distinct().forEach { File(it).delete() }
+                    onVolver()
+                }) { Text("SALIR SIN GUARDAR") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmacionSalida = false }) { Text("CONTINUAR DILIGENCIANDO") }
+            }
+        )
+    }
 
     if (mostrarConfirmacion) {
         AlertDialog(
@@ -144,7 +170,7 @@ fun CambioComponenteScreen(
             ) {
                 Text("Cambio de componente", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold, color = SolarPrimary, modifier = Modifier.weight(1f))
-                TextButton(onClick = onVolver, enabled = !uiState.isSaving) { Text("VOLVER") }
+                TextButton(onClick = { mostrarConfirmacionSalida = true }, enabled = !uiState.isSaving && !mostrarConfirmacion) { Text("VOLVER") }
             }
         }
     ) { padding ->
@@ -197,15 +223,15 @@ fun CambioComponenteScreen(
                 solicitarPermisoUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
             }
             val esPaneles = componente == "Paneles"
-            CapturaFotoTitularidad(if (esPaneles) "Panel viejo 1" else "Componente malo", if (esPaneles) "panel_viejo_1" else "componente_malo", fotoMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { fotoMalo = it }
-            CapturaFotoTitularidad(if (esPaneles) "Serial del panel viejo 1" else "Serial del componente malo", if (esPaneles) "serial_panel_viejo_1" else "serial_componente_malo", serialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { serialMalo = it }
-            CapturaFotoTitularidad(if (esPaneles) "Panel nuevo 1" else "Componente nuevo", if (esPaneles) "panel_nuevo_1" else "componente_nuevo", fotoNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { fotoNuevo = it }
-            CapturaFotoTitularidad(if (esPaneles) "Serial del panel nuevo 1" else "Serial del componente nuevo", if (esPaneles) "serial_panel_nuevo_1" else "serial_componente_nuevo", serialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { serialNuevo = it }
+            CapturaFotoTitularidad(if (esPaneles) "Panel viejo 1" else "Componente malo", if (esPaneles) "panel_viejo_1" else "componente_malo", fotoMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> fotoMalo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Serial del panel viejo 1" else "Serial del componente malo", if (esPaneles) "serial_panel_viejo_1" else "serial_componente_malo", serialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> serialMalo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Panel nuevo 1" else "Componente nuevo", if (esPaneles) "panel_nuevo_1" else "componente_nuevo", fotoNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> fotoNuevo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Serial del panel nuevo 1" else "Serial del componente nuevo", if (esPaneles) "serial_panel_nuevo_1" else "serial_componente_nuevo", serialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> serialNuevo = path }
             if (esPaneles) {
-                CapturaFotoTitularidad("Panel viejo 2", "panel_viejo_2", segundoPanelMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { segundoPanelMalo = it }
-                CapturaFotoTitularidad("Serial del panel viejo 2", "serial_panel_viejo_2", segundoSerialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { segundoSerialMalo = it }
-                CapturaFotoTitularidad("Panel nuevo 2", "panel_nuevo_2", segundoPanelNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { segundoPanelNuevo = it }
-                CapturaFotoTitularidad("Serial del panel nuevo 2", "serial_panel_nuevo_2", segundoSerialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { segundoSerialNuevo = it }
+                CapturaFotoTitularidad("Panel viejo 2", "panel_viejo_2", segundoPanelMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelMalo = path }
+                CapturaFotoTitularidad("Serial del panel viejo 2", "serial_panel_viejo_2", segundoSerialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialMalo = path }
+                CapturaFotoTitularidad("Panel nuevo 2", "panel_nuevo_2", segundoPanelNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelNuevo = path }
+                CapturaFotoTitularidad("Serial del panel nuevo 2", "serial_panel_nuevo_2", segundoSerialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialNuevo = path }
             }
 
             Card(Modifier.fillMaxWidth()) {

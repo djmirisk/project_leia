@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -43,10 +48,12 @@ fun IdentificarSisfvScreen(
     tecnico: TecnicoEntity,
     onVolver: () -> Unit,
     onSistemaSeleccionado: (SistemaSisfvEntity) -> Unit,
-    tituloScreen: String = "Identificar SISFV"
+    tituloScreen: String = "Identificar SISFV",
+    resaltarMantenimientoEfectivo: Boolean = false
 ) {
     val viewModel: IdentificarSisfvViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
+    BackHandler(onBack = onVolver)
 
     var mostrarContratos by remember { mutableStateOf(false) }
     var mostrarComunidades by remember { mutableStateOf(false) }
@@ -86,6 +93,7 @@ fun IdentificarSisfvScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(20.dp)
+                .verticalScroll(rememberScrollState())
         ) {
 
             // =====================================================
@@ -399,21 +407,14 @@ fun IdentificarSisfvScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-
-                    items(
-                        items = uiState.resultados,
-                        key = { it.id }
-                    ) { sistema ->
-
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    uiState.resultados.forEach { sistema ->
                         SistemaSisfvCard(
                             sistema = sistema,
-                            onClick = {
-                                onSistemaSeleccionado(sistema)
-                            }
+                            tieneMantenimientoEfectivo = if (resaltarMantenimientoEfectivo) {
+                                sistema.id in uiState.resultadosEfectivos
+                            } else null,
+                            onClick = { onSistemaSeleccionado(sistema) }
                         )
                     }
                 }
@@ -425,12 +426,32 @@ fun IdentificarSisfvScreen(
 @Composable
 private fun SistemaSisfvCard(
     sistema: SistemaSisfvEntity,
+    tieneMantenimientoEfectivo: Boolean?,
     onClick: () -> Unit
 ) {
 
+    val forma = RoundedCornerShape(12.dp)
+    val sombra = when (tieneMantenimientoEfectivo) {
+        true -> Color(0x664CAF50)
+        false -> Color(0x66EF5350)
+        null -> Color.Transparent
+    }
+    val fondo = when (tieneMantenimientoEfectivo) {
+        true -> Color(0xFFE8F5E9)
+        false -> Color(0xFFFFEBEE)
+        null -> MaterialTheme.colorScheme.surface
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick
+        modifier = Modifier.fillMaxWidth().then(
+            if (tieneMantenimientoEfectivo != null) {
+                Modifier.shadow(5.dp, forma, ambientColor = sombra, spotColor = sombra)
+            } else Modifier
+        ),
+        onClick = onClick,
+        shape = forma,
+        colors = CardDefaults.cardColors(containerColor = fondo),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
 
         Column(
@@ -442,6 +463,14 @@ private fun SistemaSisfvCard(
                 fontWeight = FontWeight.Bold,
                 color = SolarGreen
             )
+
+            if (tieneMantenimientoEfectivo != null) {
+                Text(
+                    text = if (tieneMantenimientoEfectivo) "Mantenimiento efectivo registrado" else "Sin mantenimiento efectivo registrado",
+                    color = if (tieneMantenimientoEfectivo) SolarGreen else Color(0xFFC62828),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
