@@ -28,12 +28,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
@@ -723,7 +722,8 @@ fun FormularioMantenimientoScreen(
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Phone
+                            keyboardType = KeyboardType.Phone,
+                            imeAction = ImeAction.Next
                         )
                     )
 
@@ -765,23 +765,21 @@ fun FormularioMantenimientoScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                RadioButton(
-                    selected = tipoMantenimiento == "PREVENTIVO",
+                OpcionRadio(
+                    texto = "Preventivo",
+                    seleccionado = tipoMantenimiento == "PREVENTIVO",
                     onClick = {
                         tipoMantenimiento = "PREVENTIVO"
                     }
                 )
 
-                Text("Preventivo")
-
-                RadioButton(
-                    selected = tipoMantenimiento == "CORRECTIVO",
+                OpcionRadio(
+                    texto = "Correctivo",
+                    seleccionado = tipoMantenimiento == "CORRECTIVO",
                     onClick = {
                         tipoMantenimiento = "CORRECTIVO"
                     }
                 )
-
-                Text("Correctivo")
             }
 
             Spacer(
@@ -804,7 +802,8 @@ fun FormularioMantenimientoScreen(
 
             OutlinedTextField(
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
                 ),
                 value = voltajePanelDc,
                 onValueChange = {
@@ -823,7 +822,8 @@ fun FormularioMantenimientoScreen(
 
             OutlinedTextField(
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
                 ),
                 value = corrientePanelDc,
                 onValueChange = {
@@ -842,7 +842,8 @@ fun FormularioMantenimientoScreen(
 
             OutlinedTextField(
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
                 ),
                 value = voltajeBateriaDc,
                 onValueChange = {
@@ -861,7 +862,8 @@ fun FormularioMantenimientoScreen(
 
             OutlinedTextField(
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
                 ),
                 value = corrienteBateriaDc,
                 onValueChange = {
@@ -917,14 +919,13 @@ fun FormularioMantenimientoScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                Checkbox(
-                    checked = breakerVerificado,
-                    onCheckedChange = {
+                FilaCasilla(
+                    texto = "Breaker verificado",
+                    marcado = breakerVerificado,
+                    onCambio = {
                         breakerVerificado = it
                     }
                 )
-
-                Text("Breaker verificado")
             }
 
             if (breakerVerificado) {
@@ -933,23 +934,21 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    RadioButton(
-                        selected = breakerNormal,
+                    OpcionRadio(
+                        texto = "Normal",
+                        seleccionado = breakerNormal,
                         onClick = {
                             breakerNormal = true
                         }
                     )
 
-                    Text("Normal")
-
-                    RadioButton(
-                        selected = !breakerNormal,
+                    OpcionRadio(
+                        texto = "Novedad",
+                        seleccionado = !breakerNormal,
                         onClick = {
                             breakerNormal = false
                         }
                     )
-
-                    Text("Novedad")
                 }
 
                 if (!breakerNormal) {
@@ -980,14 +979,13 @@ fun FormularioMantenimientoScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                Checkbox(
-                    checked = fusibleVerificado,
-                    onCheckedChange = {
+                FilaCasilla(
+                    texto = "Fusibles verificados",
+                    marcado = fusibleVerificado,
+                    onCambio = {
                         fusibleVerificado = it
                     }
                 )
-
-                Text("Fusibles verificados")
             }
 
             if (fusibleVerificado) {
@@ -996,23 +994,21 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    RadioButton(
-                        selected = fusibleNormal,
+                    OpcionRadio(
+                        texto = "Normal",
+                        seleccionado = fusibleNormal,
                         onClick = {
                             fusibleNormal = true
                         }
                     )
 
-                    Text("Normal")
-
-                    RadioButton(
-                        selected = !fusibleNormal,
+                    OpcionRadio(
+                        texto = "Novedad",
+                        seleccionado = !fusibleNormal,
                         onClick = {
                             fusibleNormal = false
                         }
                     )
-
-                    Text("Novedad")
                 }
 
                 if (!fusibleNormal) {
@@ -1043,14 +1039,13 @@ fun FormularioMantenimientoScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                Checkbox(
-                    checked = dpsVerificado,
-                    onCheckedChange = {
+                FilaCasilla(
+                    texto = "DPS verificado",
+                    marcado = dpsVerificado,
+                    onCambio = {
                         dpsVerificado = it
                     }
                 )
-
-                Text("DPS verificado")
             }
 
             if (dpsVerificado) {
@@ -1059,23 +1054,21 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    RadioButton(
-                        selected = dpsNormal,
+                    OpcionRadio(
+                        texto = "Normal",
+                        seleccionado = dpsNormal,
                         onClick = {
                             dpsNormal = true
                         }
                     )
 
-                    Text("Normal")
-
-                    RadioButton(
-                        selected = !dpsNormal,
+                    OpcionRadio(
+                        texto = "Novedad",
+                        seleccionado = !dpsNormal,
                         onClick = {
                             dpsNormal = false
                         }
                     )
-
-                    Text("Novedad")
                 }
 
                 if (!dpsNormal) {
@@ -1124,14 +1117,13 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    Checkbox(
-                        checked = torqueBateria,
-                        onCheckedChange = {
+                    FilaCasilla(
+                        texto = "Torque de tornillos de batería",
+                        marcado = torqueBateria,
+                        onCambio = {
                             torqueBateria = it
                         }
                     )
-
-                    Text("Torque de tornillos de batería")
                 }
 
                 if (torqueBateria) {
@@ -1141,23 +1133,21 @@ fun FormularioMantenimientoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
 
-                        RadioButton(
-                            selected = torqueBateriaConforme,
+                        OpcionRadio(
+                            texto = "Conforme",
+                            seleccionado = torqueBateriaConforme,
                             onClick = {
                                 torqueBateriaConforme = true
                             }
                         )
 
-                        Text("Conforme")
-
-                        RadioButton(
-                            selected = !torqueBateriaConforme,
+                        OpcionRadio(
+                            texto = "Novedad",
+                            seleccionado = !torqueBateriaConforme,
                             onClick = {
                                 torqueBateriaConforme = false
                             }
                         )
-
-                        Text("Novedad")
                     }
 
                     if (!torqueBateriaConforme) {
@@ -1187,14 +1177,13 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    Checkbox(
-                        checked = torqueBarrajePositivo,
-                        onCheckedChange = {
+                    FilaCasilla(
+                        texto = "Torque barraje positivo",
+                        marcado = torqueBarrajePositivo,
+                        onCambio = {
                             torqueBarrajePositivo = it
                         }
                     )
-
-                    Text("Torque barraje positivo")
                 }
 
                 if (torqueBarrajePositivo) {
@@ -1204,23 +1193,21 @@ fun FormularioMantenimientoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
 
-                        RadioButton(
-                            selected = torqueBarrajePositivoConforme,
+                        OpcionRadio(
+                            texto = "Conforme",
+                            seleccionado = torqueBarrajePositivoConforme,
                             onClick = {
                                 torqueBarrajePositivoConforme = true
                             }
                         )
 
-                        Text("Conforme")
-
-                        RadioButton(
-                            selected = !torqueBarrajePositivoConforme,
+                        OpcionRadio(
+                            texto = "Novedad",
+                            seleccionado = !torqueBarrajePositivoConforme,
                             onClick = {
                                 torqueBarrajePositivoConforme = false
                             }
                         )
-
-                        Text("Novedad")
                     }
 
                     if (!torqueBarrajePositivoConforme) {
@@ -1247,14 +1234,13 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    Checkbox(
-                        checked = torqueBarrajeNegativo,
-                        onCheckedChange = {
+                    FilaCasilla(
+                        texto = "Torque barraje negativo",
+                        marcado = torqueBarrajeNegativo,
+                        onCambio = {
                             torqueBarrajeNegativo = it
                         }
                     )
-
-                    Text("Torque barraje negativo")
                 }
 
                 if (torqueBarrajeNegativo) {
@@ -1264,23 +1250,21 @@ fun FormularioMantenimientoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
 
-                        RadioButton(
-                            selected = torqueBarrajeNegativoConforme,
+                        OpcionRadio(
+                            texto = "Conforme",
+                            seleccionado = torqueBarrajeNegativoConforme,
                             onClick = {
                                 torqueBarrajeNegativoConforme = true
                             }
                         )
 
-                        Text("Conforme")
-
-                        RadioButton(
-                            selected = !torqueBarrajeNegativoConforme,
+                        OpcionRadio(
+                            texto = "Novedad",
+                            seleccionado = !torqueBarrajeNegativoConforme,
                             onClick = {
                                 torqueBarrajeNegativoConforme = false
                             }
                         )
-
-                        Text("Novedad")
                     }
 
                     if (!torqueBarrajeNegativoConforme) {
@@ -1306,14 +1290,13 @@ fun FormularioMantenimientoScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    Checkbox(
-                        checked = torqueBarrajeNeutro,
-                        onCheckedChange = {
+                    FilaCasilla(
+                        texto = "Torque barraje neutro",
+                        marcado = torqueBarrajeNeutro,
+                        onCambio = {
                             torqueBarrajeNeutro = it
                         }
                     )
-
-                    Text("Torque barraje neutro")
                 }
 
                 if (torqueBarrajeNeutro) {
@@ -1323,23 +1306,21 @@ fun FormularioMantenimientoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
 
-                        RadioButton(
-                            selected = torqueBarrajeNeutroConforme,
+                        OpcionRadio(
+                            texto = "Conforme",
+                            seleccionado = torqueBarrajeNeutroConforme,
                             onClick = {
                                 torqueBarrajeNeutroConforme = true
                             }
                         )
 
-                        Text("Conforme")
-
-                        RadioButton(
-                            selected = !torqueBarrajeNeutroConforme,
+                        OpcionRadio(
+                            texto = "Novedad",
+                            seleccionado = !torqueBarrajeNeutroConforme,
                             onClick = {
                                 torqueBarrajeNeutroConforme = false
                             }
                         )
-
-                        Text("Novedad")
                     }
 
                     if (!torqueBarrajeNeutroConforme) {
@@ -1392,7 +1373,7 @@ fun FormularioMantenimientoScreen(
                             label = { Text("Latitud") },
                             placeholder = { Text("7.3345") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
                         )
                         OutlinedTextField(
                             value = longitudManualConfirmada,
@@ -1461,9 +1442,10 @@ fun FormularioMantenimientoScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = medidorAplica,
-                    onCheckedChange = { aplica ->
+                FilaCasilla(
+                    texto = "Medidor instalado / aplica",
+                    marcado = medidorAplica,
+                    onCambio = { aplica ->
                         medidorAplica = aplica
                         errorFormulario = null
                         if (!aplica) {
@@ -1478,7 +1460,6 @@ fun FormularioMantenimientoScreen(
                         }
                     }
                 )
-                Text("Medidor instalado / aplica")
             }
 
             if (medidorAplica) {
@@ -1490,8 +1471,9 @@ fun FormularioMantenimientoScreen(
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = medidorNormal,
+                    OpcionRadio(
+                        texto = "Normal",
+                        seleccionado = medidorNormal,
                         onClick = {
                             medidorNormal = true
                             codigoActivo = ""
@@ -1500,10 +1482,10 @@ fun FormularioMantenimientoScreen(
                             errorFormulario = null
                         }
                     )
-                    Text("Normal")
 
-                    RadioButton(
-                        selected = !medidorNormal,
+                    OpcionRadio(
+                        texto = "Código activo",
+                        seleccionado = !medidorNormal,
                         onClick = {
                             medidorNormal = false
                             energiaConsumidaKwh = ""
@@ -1513,7 +1495,6 @@ fun FormularioMantenimientoScreen(
                             errorFormulario = null
                         }
                     )
-                    Text("Código activo")
                 }
 
                 if (medidorNormal) {
@@ -1752,7 +1733,8 @@ fun FormularioMantenimientoScreen(
                 onValueChange = { nombreReceptorFirma = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Nombre completo de quien recibe") },
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -1769,17 +1751,17 @@ fun FormularioMantenimientoScreen(
                 fontWeight = FontWeight.Medium
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = receptorEsTitular == true,
+                OpcionRadio(
+                    texto = "Sí",
+                    seleccionado = receptorEsTitular == true,
                     onClick = { receptorEsTitular = true }
                 )
-                Text("Sí")
                 Spacer(modifier = Modifier.padding(horizontal = 8.dp))
-                RadioButton(
-                    selected = receptorEsTitular == false,
+                OpcionRadio(
+                    texto = "No",
+                    seleccionado = receptorEsTitular == false,
                     onClick = { receptorEsTitular = false }
                 )
-                Text("No")
             }
             Spacer(modifier = Modifier.height(12.dp))
 

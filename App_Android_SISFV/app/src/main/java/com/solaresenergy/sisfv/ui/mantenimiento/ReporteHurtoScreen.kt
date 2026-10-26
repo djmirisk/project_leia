@@ -23,7 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -65,6 +65,9 @@ private val fotosHurto = listOf(
     "TOMACORRIENTES" to "Foto #14 · Tomacorrientes",
     "BOMBILLO_ENCENDIDO" to "Foto #15 · Bombillo"
 )
+
+// Orden de las evidencias del formulario; la galería lo reutiliza para mostrarlas igual.
+internal val codigosFotosHurto: List<String> = fotosHurto.map { it.first }
 
 private val fotosHurtoSaver = listSaver<List<EvidenciaFotoUbicacion>, String>(
     save = { fotos -> fotos.flatMap { listOf(it.codigo, it.ruta, it.latitud.toString(), it.longitud.toString(), it.precision.toString(), it.fechaCaptura.toString()) } },
@@ -287,7 +290,7 @@ fun ReporteHurtoScreen(
                     onValueChange = { latitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false; errorCoordenadas = null },
                     modifier = Modifier.weight(1f),
                     label = { Text("Latitud") }, placeholder = { Text("7.3345") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
                 )
                 OutlinedTextField(
                     value = longitudManual,
@@ -347,13 +350,13 @@ fun ReporteHurtoScreen(
                 placeholder = { Text("Describa el testimonio de quien reporta el hurto", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)) },
                 minLines = 4
             )
-            OutlinedTextField(nombre, { nombre = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo de quien reporta") })
-            OutlinedTextField(documento, { documento = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Documento de identidad") })
+            OutlinedTextField(nombre, { nombre = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo de quien reporta") }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
+            OutlinedTextField(documento, { documento = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Documento de identidad") }, singleLine = true)
             Text("¿Quien reporta el hurto es el titular?")
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = esTitular == true, onClick = { esTitular = true }); Text("Sí")
+                OpcionRadio("Sí", seleccionado = esTitular == true, onClick = { esTitular = true })
                 Spacer(Modifier.height(1.dp).weight(1f))
-                RadioButton(selected = esTitular == false, onClick = { esTitular = false }); Text("No")
+                OpcionRadio("No", seleccionado = esTitular == false, onClick = { esTitular = false })
             }
             FirmaDigitalCanvas(
                 titulo = "Firma de quien reporta el hurto",

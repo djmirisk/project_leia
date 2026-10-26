@@ -29,7 +29,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -198,10 +198,7 @@ fun CambioComponenteScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("1. Componente mayor", style = MaterialTheme.typography.titleMedium, color = SolarPrimary, fontWeight = FontWeight.Bold)
                     componentes.forEach { opcion ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = componente == opcion, onClick = { componente = opcion })
-                            Text(opcion)
-                        }
+                        OpcionRadio(opcion, seleccionado = componente == opcion, onClick = { componente = opcion })
                     }
                 }
             }
@@ -238,12 +235,12 @@ fun CambioComponenteScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("3. Responsable de la visita", style = MaterialTheme.typography.titleMedium, color = SolarPrimary, fontWeight = FontWeight.Bold)
                     Text("La persona presente puede ser distinta del titular registrado. Identifique a quien recibe la visita.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(nombreReceptor, { nombreReceptor = it }, Modifier.fillMaxWidth(), label = { Text("Nombre completo") }, singleLine = true)
+                    OutlinedTextField(nombreReceptor, { nombreReceptor = it }, Modifier.fillMaxWidth(), label = { Text("Nombre completo") }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), singleLine = true)
                     OutlinedTextField(documentoReceptor, { documentoReceptor = it }, Modifier.fillMaxWidth(), label = { Text("Número de documento") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                     Text("¿La persona que recibe es el titular del SISFV?")
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(receptorEsTitular == true, onClick = { receptorEsTitular = true }); Text("Sí")
-                        RadioButton(receptorEsTitular == false, onClick = { receptorEsTitular = false }); Text("No")
+                        OpcionRadio("Sí", seleccionado = receptorEsTitular == true, onClick = { receptorEsTitular = true })
+                        OpcionRadio("No", seleccionado = receptorEsTitular == false, onClick = { receptorEsTitular = false })
                     }
                 }
             }
