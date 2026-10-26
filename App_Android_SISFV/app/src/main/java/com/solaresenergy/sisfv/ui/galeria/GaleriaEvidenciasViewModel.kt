@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.solaresenergy.sisfv.data.local.AppDatabase
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
+import com.solaresenergy.sisfv.ui.mantenimiento.codigosFotosHurto
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,27 +80,41 @@ class GaleriaEvidenciasViewModel(application: Application) : AndroidViewModel(ap
 
         val mantenimientos = db.mantenimientoDao().listarParaGaleria(sistema.codigoSisfv, tecnicoId)
         mantenimientos.forEach { mantenimiento ->
-            val fotos = db.mantenimientoFotoDao()
-                .listarPorMantenimiento(mantenimiento.id)
+            val esHurto = mantenimiento.tipoMantenimiento == "REPORTE_HURTO"
+            val fotosRegistradas = db.mantenimientoFotoDao().listarPorMantenimiento(mantenimiento.id)
+            // El hurto guarda las fotos en el orden en que se tomaron; se muestran en el orden del formulario.
+            val fotosOrdenadas = if (esHurto) {
+                fotosRegistradas.sortedBy { foto ->
+                    codigosFotosHurto.indexOf(foto.codigoFoto).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                }
+            } else {
+                fotosRegistradas
+            }
+            val fotos = fotosOrdenadas
                 .mapNotNull { foto ->
                     val ruta = foto.rutaConMarcaAgua?.takeIf { it.isNotBlank() } ?: foto.rutaOriginal
                     if (!File(ruta).isFile) return@mapNotNull null
                     FotoGaleria(foto.titulo, ruta, foto.fechaCaptura, true)
                 }
             if (fotos.isNotEmpty()) {
-                val categoria = "Mantenimientos"
+                val categoria = if (esHurto) "Reportes de hurto" else "Mantenimientos"
                 val titulo = when (mantenimiento.tipoMantenimiento) {
-                    "REPORTE_HURTO" -> "Hurto reportado"
+                    "REPORTE_HURTO" -> "Reporte de hurto"
                     "VISITA_NO_EFECTIVA" -> "Mantenimiento no efectivo"
                     else -> "Mantenimiento ${mantenimiento.tipoMantenimiento}"
                 }
+                val reportante = mantenimiento.nombreReceptorFirma?.takeIf { esHurto && it.isNotBlank() }
                 grupos += GrupoFotosGaleria(
                     categoria = categoria,
                     sistemaId = sistema.id,
                     codigoSisfv = sistema.codigoSisfv,
                     nombreUsuario = sistema.nombreUsuario,
                     titulo = titulo,
-                    detalle = "$referenciaSistema · ${fechaLegible(mantenimiento.fechaVisita)}",
+                    detalle = listOfNotNull(
+                        referenciaSistema,
+                        fechaLegible(mantenimiento.fechaVisita),
+                        reportante?.let { "Reportado por $it" }
+                    ).joinToString(" · "),
                     fecha = mantenimiento.fechaVisita,
                     fotos = fotos
                 )
@@ -163,6 +178,7 @@ class GaleriaEvidenciasViewModel(application: Application) : AndroidViewModel(ap
     private fun ordenCategoria(categoria: String): Int = when (categoria) {
         "Cambios de titularidad" -> 0
         "Cambios de componentes" -> 1
+        "Reportes de hurto" -> 3
         else -> 2
     }
 

@@ -17,6 +17,8 @@ data class HomeUiState(
     val componentesSincronizados: Int = 0,
     val totalCambiosTitularidad: Int = 0,
     val totalCambiosComponente: Int = 0,
+    val totalReportesHurto: Int = 0,
+    val reportesHurtoSincronizados: Int = 0,
     val contratosAsignados: List<ContratoEntity> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -61,6 +63,9 @@ class HomeViewModel(
                 val totalCambiosComponente = cambioComponenteDao.contarPorTecnico(tecnicoId)
                 val componentesSincronizados = cambioComponenteDao.contarSincronizadosPorTecnico(tecnicoId)
 
+                val totalReportesHurto = mantenimientoDao.contarReportesHurtoPorTecnico(tecnicoId)
+                val reportesHurtoSincronizados = mantenimientoDao.contarReportesHurtoSincronizadosPorTecnico(tecnicoId)
+
                 // Consultar únicamente los contratos asignados
                 // al técnico que inició sesión.
                 val idsContratos =
@@ -83,6 +88,8 @@ class HomeViewModel(
                     componentesSincronizados = componentesSincronizados,
                     totalCambiosTitularidad = totalTitularidades,
                     totalCambiosComponente = totalCambiosComponente,
+                    totalReportesHurto = totalReportesHurto,
+                    reportesHurtoSincronizados = reportesHurtoSincronizados,
                     contratosAsignados = contratos,
                     isLoading = false
                 )

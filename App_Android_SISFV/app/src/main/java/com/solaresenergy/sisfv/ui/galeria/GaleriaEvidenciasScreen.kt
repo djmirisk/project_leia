@@ -51,7 +51,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val categoriasGaleria = listOf("Mantenimientos", "Cambios de titularidad", "Cambios de componentes")
+private val categoriasGaleria = listOf("Mantenimientos", "Cambios de titularidad", "Cambios de componentes", "Reportes de hurto")
 
 @Composable
 fun GaleriaEvidenciasScreen(
