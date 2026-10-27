@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
@@ -35,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
@@ -53,6 +57,7 @@ fun IdentificarSisfvScreen(
 ) {
     val viewModel: IdentificarSisfvViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
+    val teclado = LocalSoftwareKeyboardController.current
     BackHandler(onBack = onVolver)
 
     var mostrarContratos by remember { mutableStateOf(false) }
@@ -355,7 +360,16 @@ fun IdentificarSisfvScreen(
                     placeholder = {
                         Text("Ej. SISFV-001, Juan, NUI...")
                     },
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Search
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            viewModel.ejecutarBusqueda()
+                            teclado?.hide()
+                        }
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))

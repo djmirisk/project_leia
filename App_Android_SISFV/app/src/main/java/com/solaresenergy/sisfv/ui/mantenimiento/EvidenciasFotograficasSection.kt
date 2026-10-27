@@ -26,7 +26,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,7 +89,8 @@ internal fun ubicacionGpsReciente(location: Location?): Boolean =
 
 internal fun filtrarEntradaCoordenada(entrada: String): String {
     val resultado = StringBuilder()
-    entrada.forEach { caracter ->
+    // Los teclados numéricos en español muestran la coma como separador decimal.
+    entrada.replace(',', '.').forEach { caracter ->
         when {
             caracter in '0'..'9' && resultado.length < 8 -> resultado.append(caracter)
             caracter == '.' && '.' !in resultado && resultado.length < 8 -> resultado.append(caracter)
@@ -319,7 +320,10 @@ fun EvidenciasFotograficasSection(
                     label = { Text("Latitud") },
                     placeholder = { Text("7.3345") },
                     singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next
+                    )
                 )
                 OutlinedTextField(
                     value = longitudManual,
@@ -404,16 +408,16 @@ fun EvidenciasFotograficasSection(
                         if (foto.codigo == "BOMBILLO_ENCENDIDO") {
                             Text("¿El bombillo enciende durante la prueba? Esta respuesta define el estado de todo el SISFV.")
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(
-                                    selected = bombilloEncendido == true,
+                                OpcionRadio(
+                                    texto = "Sí, enciende",
+                                    seleccionado = bombilloEncendido == true,
                                     onClick = { onBombilloEncendidoChange(true) }
                                 )
-                                Text("Sí, enciende")
-                                RadioButton(
-                                    selected = bombilloEncendido == false,
+                                OpcionRadio(
+                                    texto = "No enciende",
+                                    seleccionado = bombilloEncendido == false,
                                     onClick = { onBombilloEncendidoChange(false) }
                                 )
-                                Text("No enciende")
                             }
                         }
                         Text(
