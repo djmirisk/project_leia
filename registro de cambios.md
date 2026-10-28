@@ -235,3 +235,30 @@ Los cambios de las secciones 9, 10 y 11 quedan en el commit de este informe.
   formulario, contacto en diálogo con teléfono de 10 dígitos, y capitalización de nombres.
 - Se **eliminó** `App_Android_SISFV/AGENTS.md` para que exista una sola versión.
 
+---
+
+## 15. Limpieza de documentos superados
+
+Se eliminaron dos archivos que no estaban versionados y quedaron obsoletos. Antes de borrarlos se
+conserva aquí lo que seguía siendo relevante:
+
+- **`App_Android_SISFV/CONTEXTO_SISFV_PARA_CODEX.md`** (21/10/2026): traspaso de contexto de una
+  conversación anterior. Afirmaba que Room estaba en versión 9 y que el cambio de contacto estaba
+  pendiente; ambas cosas son falsas en el estado actual. Todo lo vigente quedó en el `AGENTS.md`.
+- **`INFORME_ARRANQUE_SISFV.md`** (27/10/2026): diagnóstico inicial del repositorio. Su contenido
+  útil se resume en los hallazgos siguientes.
+
+### Hallazgos técnicos que siguen vigentes
+
+1. **`android:allowBackup="true"`** en el manifiesto: la base `sisfv_database` y las evidencias
+   privadas entran en los respaldos del sistema. Conviene evaluar `allowBackup="false"` para
+   producción por protección de datos personales.
+2. **Sin pruebas automatizadas**: no existen `app/src/test/` ni `app/src/androidTest/`.
+3. **`exportSchema = false`** en Room: sin esquemas exportados no se pueden escribir pruebas de
+   migración automáticas.
+4. **Credenciales de prueba en texto plano**: `AppDatabase.DatabaseCallback` siembra técnicos con
+   PIN `"1234"` y `DatosPruebaSeeder` carga datos maestros de prueba. Debe desactivarse antes de
+   una APK definitiva.
+5. **Sincronización ausente**: `SyncWorker` no implementa envío a NAS ni a la plataforma web.
+
+
