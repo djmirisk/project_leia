@@ -220,3 +220,18 @@ Los cambios de las secciones 9, 10 y 11 quedan en el commit de este informe.
 5. **Riesgo de dispositivo:** el táctil de la tablet se declara como teclado físico; si Gboard se
    actualiza o se corrompe, el teclado puede volver a mostrarse flotante. Recuperación:
    `adb shell pm uninstall-system-updates com.google.android.inputmethod.latin`.
+
+---
+
+## 14. Unificación de la documentación de agentes
+
+- Existían dos `AGENTS.md`: el de la raíz (guía genérica de repositorio) y
+  `App_Android_SISFV/AGENTS.md` (reglas específicas de SISFV, sin versionar).
+- Se **fusionaron en un único `AGENTS.md` en la raíz**, con nueve secciones que cubren forma de
+  trabajo, proyecto, estructura y convenciones, compilación y pruebas, seguridad de datos,
+  funcionalidad implementada, estado de integración, colaboración con Git y notas del entorno de pruebas.
+- Se actualizaron datos que estaban desfasados: Room **13** (no 9), cadena de migraciones 3→13,
+  catálogo de **18** evidencias, teclado propio en login, sesión persistente, ubicación única por
+  formulario, contacto en diálogo con teléfono de 10 dígitos, y capitalización de nombres.
+- Se **eliminó** `App_Android_SISFV/AGENTS.md` para que exista una sola versión.
+
