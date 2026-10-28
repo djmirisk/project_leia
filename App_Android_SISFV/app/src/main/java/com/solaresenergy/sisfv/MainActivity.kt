@@ -23,6 +23,7 @@ import com.solaresenergy.sisfv.ui.mantenimiento.IdentificarSisfvScreen
 import com.solaresenergy.sisfv.ui.theme.SolaresSISFVTheme
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
 import com.solaresenergy.sisfv.data.local.AppDatabase
+import com.solaresenergy.sisfv.data.local.SesionTecnico
 import com.solaresenergy.sisfv.ui.mantenimiento.FormularioMantenimientoScreen
 import com.solaresenergy.sisfv.ui.mantenimiento.CambioTitularidadScreen
 import com.solaresenergy.sisfv.ui.galeria.GaleriaEvidenciasScreen
@@ -87,7 +88,22 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     val db = AppDatabase.getDatabase(appContext)
-                    tecnicoIdGuardado?.let { tecnicoActual = db.tecnicoDao().obtenerPorId(it) }
+
+                    // Si el sistema cerró la app en segundo plano, se recupera la sesión
+                    // guardada en preferencias para no obligar al técnico a entrar de nuevo.
+                    val tecnicoIdSesion = tecnicoIdGuardado ?: SesionTecnico.leer(appContext)
+                    if (tecnicoIdSesion != null) {
+                        val tecnico = db.tecnicoDao().obtenerPorId(tecnicoIdSesion)
+                        if (tecnico != null) {
+                            tecnicoActual = tecnico
+                            tecnicoIdGuardado = tecnico.id
+                        } else {
+                            // El técnico ya no existe en la base local: se descarta la sesión.
+                            SesionTecnico.limpiar(appContext)
+                            tecnicoIdGuardado = null
+                        }
+                    }
+
                     sistemaSeleccionadoId?.let { id ->
                         sistemaSeleccionadoContratoId?.let { contratoId ->
                             sistemaSeleccionado = db.sistemaSisfvDao().obtenerPorId(id, contratoId)
@@ -120,6 +136,7 @@ class MainActivity : ComponentActivity() {
 
                                 tecnicoActual = tecnico
                                 tecnicoIdGuardado = tecnico.id
+                                SesionTecnico.guardar(appContext, tecnico.id)
 
                                 Toast.makeText(
                                     this@MainActivity,
@@ -360,6 +377,7 @@ class MainActivity : ComponentActivity() {
                             onCerrarSesionClick = {
 
                                 loginViewModel.cerrarSesion()
+                                SesionTecnico.limpiar(appContext)
 
                                 tecnicoActual = null
                                 tecnicoIdGuardado = null
