@@ -4,8 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,9 +40,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -179,12 +191,102 @@ fun GaleriaEvidenciasScreen(
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FotoGaleriaImagen(ruta, Modifier.fillMaxWidth().height(420.dp), ContentScale.Fit, 1600)
+                    FotoGaleriaZoom(
+                        ruta = ruta,
+                        modifier = Modifier.fillMaxWidth().height(440.dp)
+                    )
+                    Text(
+                        "Pellizca para acercar, arrastra para mover y doble toque para ampliar o restablecer.",
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center
+                    )
                     Button(onClick = { fotoAmpliada = null }, modifier = Modifier.fillMaxWidth()) { Text("CERRAR") }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Visor con zoom para validar la marca de agua de la evidencia.
+ * Admite pellizco, arrastre y doble toque.
+ */
+@Composable
+private fun FotoGaleriaZoom(ruta: String, modifier: Modifier = Modifier) {
+    var escala by remember(ruta) { mutableStateOf(1f) }
+    var desplazamiento by remember(ruta) { mutableStateOf(Offset.Zero) }
+    var tamano by remember { mutableStateOf(IntSize.Zero) }
+
+    val estado by produceState<Pair<Boolean, Bitmap?>>(initialValue = false to null, key1 = ruta) {
+        value = true to withContext(Dispatchers.IO) { decodificarMiniatura(ruta, 2400) }
+    }
+    val bitmap = estado.second
+
+    val escalaMinima = 1f
+    val escalaMaxima = 6f
+
+    fun acotar(esc: Float, desp: Offset): Offset {
+        if (esc <= escalaMinima) return Offset.Zero
+        val maxX = tamano.width * (esc - 1f) / 2f
+        val maxY = tamano.height * (esc - 1f) / 2f
+        return Offset(
+            desp.x.coerceIn(-maxX, maxX),
+            desp.y.coerceIn(-maxY, maxY)
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black)
+            .onSizeChanged { tamano = it }
+            .pointerInput(ruta) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val nuevaEscala = (escala * zoom).coerceIn(escalaMinima, escalaMaxima)
+                    escala = nuevaEscala
+                    desplazamiento = acotar(nuevaEscala, desplazamiento + pan)
+                }
+            }
+            .pointerInput(ruta) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (escala > escalaMinima) {
+                            escala = escalaMinima
+                            desplazamiento = Offset.Zero
+                        } else {
+                            escala = 2.5f
+                            desplazamiento = Offset.Zero
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = escala,
+                        scaleY = escala,
+                        translationX = desplazamiento.x,
+                        translationY = desplazamiento.y
+                    )
+            )
+        } else if (!estado.first) {
+            CircularProgressIndicator(modifier = Modifier.size(28.dp), color = Color.White)
+        } else {
+            Text(
+                "No se pudo cargar la imagen",
+                color = Color.White,
+                modifier = Modifier.padding(8.dp)
+            )
         }
     }
 }

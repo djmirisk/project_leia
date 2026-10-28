@@ -65,7 +65,7 @@ class GaleriaEvidenciasViewModel(application: Application) : AndroidViewModel(ap
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = e.message ?: "No se pudieron consultar las fotografÃ­as guardadas."
+                    errorMessage = e.message ?: "No se pudieron consultar las fotografías guardadas."
                 )
             }
         }
