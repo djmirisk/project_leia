@@ -1350,10 +1350,14 @@ fun FormularioMantenimientoScreen(
                     Text("Ubicación para todas las fotografías", fontWeight = FontWeight.Bold, color = SolarPrimary)
                     Text(
                         when {
-                            ubicacionGps?.provider == "manual" -> "Coordenadas manuales confirmadas y listas para marcar las fotos."
-                            !ubicacionPermitida -> "GPS sin permiso. Puedes ingresar las coordenadas manualmente."
-                            ubicacionGpsReciente(ubicacionGps) -> "GPS listo: ${ubicacionGps?.latitude}, ${ubicacionGps?.longitude}"
-                            else -> "GPS buscando ubicación reciente. También puedes ingresar coordenadas manuales."
+                            ubicacionGps?.provider == "manual" ->
+                                "Coordenadas manuales confirmadas: ${latitudManualConfirmada}, ${longitudManualConfirmada}. Se marcan todas las fotos (sin precisión GPS)."
+                            !ubicacionPermitida ->
+                                "GPS sin permiso. Puedes ingresar las coordenadas manualmente."
+                            ubicacionGpsReciente(ubicacionGps) ->
+                                "GPS listo: ${ubicacionGps?.latitude}, ${ubicacionGps?.longitude}  ·  Precisión ±${String.format(java.util.Locale.getDefault(), "%.0f", ubicacionGps?.accuracy ?: 0f)} m"
+                            else ->
+                                "GPS buscando ubicación reciente. También puedes ingresar coordenadas manuales."
                         },
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -1361,14 +1365,13 @@ fun FormularioMantenimientoScreen(
                         OutlinedTextField(
                             value = latitudManualConfirmada,
                             onValueChange = {
-                                latitudManualConfirmada = filtrarEntradaCoordenada(it)
-                                if (coordenadasManualesConfirmadas) {
-                                    coordenadasManualesConfirmadas = false
-                                    ubicacionGps = null
-                                    ubicacionPermitida = tienePermisoUbicacion(context)
+                                if (!coordenadasManualesConfirmadas) {
+                                    latitudManualConfirmada = filtrarEntradaCoordenada(it)
+                                    errorCoordenadasManual = null
                                 }
-                                errorCoordenadasManual = null
                             },
+                            readOnly = false,
+                            enabled = !coordenadasManualesConfirmadas,
                             modifier = Modifier.weight(1f),
                             label = { Text("Latitud") },
                             placeholder = { Text("7.3345") },
@@ -1378,14 +1381,13 @@ fun FormularioMantenimientoScreen(
                         OutlinedTextField(
                             value = longitudManualConfirmada,
                             onValueChange = {
-                                longitudManualConfirmada = filtrarEntradaCoordenada(it)
-                                if (coordenadasManualesConfirmadas) {
-                                    coordenadasManualesConfirmadas = false
-                                    ubicacionGps = null
-                                    ubicacionPermitida = tienePermisoUbicacion(context)
+                                if (!coordenadasManualesConfirmadas) {
+                                    longitudManualConfirmada = filtrarEntradaCoordenada(it)
+                                    errorCoordenadasManual = null
                                 }
-                                errorCoordenadasManual = null
                             },
+                            readOnly = false,
+                            enabled = !coordenadasManualesConfirmadas,
                             modifier = Modifier.weight(1f),
                             label = { Text("Longitud") },
                             placeholder = { Text("-76.1212") },
@@ -1393,31 +1395,51 @@ fun FormularioMantenimientoScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                         )
                     }
+                    if (coordenadasManualesConfirmadas) {
+                        Text(
+                            "Coordenada registrada y bloqueada. Pulsa CORREGIR COORDENADAS para modificarla y confirmarla de nuevo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SolarPrimary
+                        )
+                    }
                     Button(
                         onClick = {
-                            val formato = Regex("^-?\\d+\\.\\d{4}$")
-                            val latitud = latitudManualConfirmada.toDoubleOrNull()
-                            val longitud = longitudManualConfirmada.toDoubleOrNull()
-                            if (!formato.matches(latitudManualConfirmada) || !formato.matches(longitudManualConfirmada) ||
-                                latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
-                            ) {
-                                errorCoordenadasManual = "Ingrese coordenadas válidas con punto y 4 decimales."
-                            } else {
-                                val manual = Location("manual").apply {
-                                    latitude = latitud
-                                    this.longitude = longitud
-                                    accuracy = 0f
-                                    time = System.currentTimeMillis()
+                            if (coordenadasManualesConfirmadas) {
+                                // Se desbloquea solo con esta acción: la coordenada guardada no se
+                                // modifica escribiendo sobre ella, igual que al volver a firmar.
+                                coordenadasManualesConfirmadas = false
+                                if (ubicacionGps?.provider == "manual") {
+                                    ubicacionGps = null
                                 }
-                                coordenadasManualesConfirmadas = true
-                                ubicacionGps = manual
-                                ubicacionPermitida = true
+                                ubicacionPermitida = tienePermisoUbicacion(context)
                                 errorCoordenadasManual = null
+                            } else {
+                                val formato = Regex("^-?\\d+\\.\\d{4}$")
+                                val latitud = latitudManualConfirmada.toDoubleOrNull()
+                                val longitud = longitudManualConfirmada.toDoubleOrNull()
+                                if (!formato.matches(latitudManualConfirmada) || !formato.matches(longitudManualConfirmada) ||
+                                    latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
+                                ) {
+                                    errorCoordenadasManual = "Ingrese coordenadas válidas con punto y 4 decimales."
+                                } else {
+                                    val manual = Location("manual").apply {
+                                        latitude = latitud
+                                        this.longitude = longitud
+                                        accuracy = 0f
+                                        time = System.currentTimeMillis()
+                                    }
+                                    coordenadasManualesConfirmadas = true
+                                    ubicacionGps = manual
+                                    ubicacionPermitida = true
+                                    errorCoordenadasManual = null
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !uiState.isSaving && !procesandoFotoMedidor
-                    ) { Text(if (coordenadasManualesConfirmadas) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
+                    ) {
+                        Text(if (coordenadasManualesConfirmadas) "CORREGIR COORDENADAS" else "CONFIRMAR COORDENADAS")
+                    }
                     errorCoordenadasManual?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
@@ -1658,23 +1680,6 @@ fun FormularioMantenimientoScreen(
                             Manifest.permission.ACCESS_COARSE_LOCATION
                         )
                     )
-                },
-                onUbicacionManualConfirmada = { location ->
-                    coordenadasManualesConfirmadas = true
-                    latitudManualConfirmada = String.format(java.util.Locale.US, "%.4f", location.latitude)
-                    longitudManualConfirmada = String.format(java.util.Locale.US, "%.4f", location.longitude)
-                    ubicacionGps = location
-                    ubicacionPermitida = true
-                    errorFormulario = null
-                },
-                onCoordenadasManualesEditadas = {
-                    if (coordenadasManualesConfirmadas) {
-                        coordenadasManualesConfirmadas = false
-                        latitudManualConfirmada = ""
-                        longitudManualConfirmada = ""
-                        ubicacionGps = null
-                        ubicacionPermitida = tienePermisoUbicacion(context)
-                    }
                 },
                 guardando = uiState.isSaving,
                 modifier = Modifier.fillMaxWidth(),

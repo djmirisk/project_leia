@@ -1,6 +1,7 @@
 package com.solaresenergy.sisfv.ui.mantenimiento
 
 import androidx.activity.compose.BackHandler
+import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,6 +66,14 @@ fun VisitaNoEfectivaScreen(
     var firmaTecnico by rememberSaveable(sistema.id) { mutableStateOf<String?>(null) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var mostrarConfirmacionSalida by rememberSaveable { mutableStateOf(false) }
+
+    // Ubicación manual confirmada una sola vez para todas las fotografías.
+    var coordenadasManualesConfirmadas by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var latitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var longitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var ubicacionManual by remember { mutableStateOf<Location?>(null) }
+    val ubicacionParaFotos = ubicacionManual ?: estadoUbicacion.ubicacion
+    val permisoUbicacionParaFotos = estadoUbicacion.permisoConcedido || coordenadasManualesConfirmadas
 
     BackHandler { if (!uiState.isSaving) mostrarConfirmacionSalida = true }
     LaunchedEffect(uiState.saveSuccess) {
@@ -107,6 +117,26 @@ fun VisitaNoEfectivaScreen(
         ) {
             Text("${sistema.codigoSisfv} · ${sistema.nombreUsuario}", fontWeight = FontWeight.Bold)
             Text("No se encontró un adulto responsable. Registra la evidencia de la visita.")
+            SeccionUbicacionFotos(
+                codigoSisfv = sistema.codigoSisfv,
+                ubicacionEfectiva = ubicacionParaFotos,
+                ubicacionPermitida = estadoUbicacion.permisoConcedido,
+                manualConfirmado = coordenadasManualesConfirmadas,
+                latitud = latitudManual,
+                longitud = longitudManual,
+                habilitado = !uiState.isSaving,
+                onLatitudChange = { latitudManual = it },
+                onLongitudChange = { longitudManual = it },
+                onConfirmar = { manual ->
+                    ubicacionManual = manual
+                    coordenadasManualesConfirmadas = true
+                },
+                onCorregir = {
+                    coordenadasManualesConfirmadas = false
+                    ubicacionManual = null
+                },
+                onSolicitarPermiso = { estadoUbicacion.solicitarPermiso() }
+            )
             fotosVisitaNoEfectiva.forEach { (codigo, titulo) ->
                 CapturaFotoTitularidad(
                     titulo = titulo,
@@ -115,8 +145,8 @@ fun VisitaNoEfectivaScreen(
                     codigoSisfv = sistema.codigoSisfv,
                     nui = sistema.nui,
                     tecnico = tecnico,
-                    ubicacionActual = estadoUbicacion.ubicacion,
-                    ubicacionPermitida = estadoUbicacion.permisoConcedido,
+                    ubicacionActual = ubicacionParaFotos,
+                    ubicacionPermitida = permisoUbicacionParaFotos,
                     onSolicitarPermisoUbicacion = estadoUbicacion.solicitarPermiso,
                     subdirectorio = "visita_no_efectiva",
                     onFotoCapturada = { ruta, ubicacion ->

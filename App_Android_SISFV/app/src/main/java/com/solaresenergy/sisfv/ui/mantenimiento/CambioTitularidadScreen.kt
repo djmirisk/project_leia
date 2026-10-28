@@ -263,29 +263,17 @@ fun CambioTitularidadScreen(
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("2. Evidencias fotográficas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SolarPrimary)
                     HorizontalDivider()
-                    Text("Las fotos incluirán marca de agua con código SISFV, técnico, fecha y ubicación GPS. La huella debe estar sobre papel blanco.", style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        text = when {
-                            ubicacionGps?.provider == "manual" -> "Coordenadas manuales confirmadas."
-                            !ubicacionPermitida -> "GPS: permiso pendiente."
-                            ubicacionGpsReciente(ubicacionGps) -> "GPS listo · ±${ubicacionGps?.accuracy?.let { String.format(java.util.Locale.getDefault(), "%.0f", it) } ?: "?"} m"
-                            else -> "GPS buscando ubicación reciente…"
-                        },
-                        color = if (ubicacionGpsReciente(ubicacionGps)) SolarPrimary else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Las fotos incluirán marca de agua con código SISFV, técnico, fecha y ubicación. La huella debe estar sobre papel blanco.", style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = latitudManual,
                             onValueChange = {
-                                latitudManual = filtrarEntradaCoordenada(it)
-                                if (coordenadasManualesConfirmadas) {
-                                    coordenadasManualesConfirmadas = false
-                                    ubicacionGps = null
-                                    ubicacionPermitida = tienePermisoUbicacionTitularidad(context)
+                                if (!coordenadasManualesConfirmadas) {
+                                    latitudManual = filtrarEntradaCoordenada(it)
+                                    errorUbicacion = null
                                 }
-                                errorUbicacion = null
                             },
+                            enabled = !coordenadasManualesConfirmadas,
                             modifier = Modifier.weight(1f),
                             label = { Text("Latitud") },
                             placeholder = { Text("7.3345") },
@@ -295,14 +283,12 @@ fun CambioTitularidadScreen(
                         OutlinedTextField(
                             value = longitudManual,
                             onValueChange = {
-                                longitudManual = filtrarEntradaCoordenada(it)
-                                if (coordenadasManualesConfirmadas) {
-                                    coordenadasManualesConfirmadas = false
-                                    ubicacionGps = null
-                                    ubicacionPermitida = tienePermisoUbicacionTitularidad(context)
+                                if (!coordenadasManualesConfirmadas) {
+                                    longitudManual = filtrarEntradaCoordenada(it)
+                                    errorUbicacion = null
                                 }
-                                errorUbicacion = null
                             },
+                            enabled = !coordenadasManualesConfirmadas,
                             modifier = Modifier.weight(1f),
                             label = { Text("Longitud") },
                             placeholder = { Text("-76.1212") },
@@ -312,28 +298,33 @@ fun CambioTitularidadScreen(
                     }
                     Button(
                         onClick = {
-                            val formato = Regex("^-?\\d+\\.\\d{4}$")
-                            val latitud = latitudManual.toDoubleOrNull()
-                            val longitud = longitudManual.toDoubleOrNull()
-                            if (!formato.matches(latitudManual) || !formato.matches(longitudManual) ||
-                                latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
-                            ) {
-                                errorUbicacion = "Ingrese latitud y longitud válidas con punto y 4 decimales."
-                            } else {
-                                ubicacionGps = Location("manual").apply {
-                                    latitude = latitud
-                                    this.longitude = longitud
-                                    accuracy = 0f
-                                    time = System.currentTimeMillis()
-                                }
-                                coordenadasManualesConfirmadas = true
-                                ubicacionPermitida = true
+                            if (coordenadasManualesConfirmadas) {
+                                coordenadasManualesConfirmadas = false
+                                if (ubicacionGps?.provider == "manual") ubicacionGps = null
+                                ubicacionPermitida = tienePermisoUbicacionTitularidad(context)
                                 errorUbicacion = null
+                            } else {
+                                val manual = construirUbicacionManual(latitudManual, longitudManual)
+                                if (manual == null) {
+                                    errorUbicacion = "Ingrese latitud y longitud válidas con punto y 4 decimales."
+                                } else {
+                                    ubicacionGps = manual
+                                    coordenadasManualesConfirmadas = true
+                                    ubicacionPermitida = true
+                                    errorUbicacion = null
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (coordenadasManualesConfirmadas) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
-                    if (!ubicacionPermitida || !ubicacionGpsReciente(ubicacionGps)) {
+                    ) { Text(if (coordenadasManualesConfirmadas) "CORREGIR COORDENADAS" else "CONFIRMAR COORDENADAS") }
+                    if (coordenadasManualesConfirmadas) {
+                        Text(
+                            "Coordenada registrada y bloqueada. Pulsa CORREGIR COORDENADAS para modificarla y confirmarla de nuevo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SolarPrimary
+                        )
+                    }
+                    if (!ubicacionPermitida || (!ubicacionGpsReciente(ubicacionGps) && !coordenadasManualesConfirmadas)) {
                         OutlinedButton(
                             onClick = {
                                 if (!ubicacionPermitida) {
@@ -351,13 +342,13 @@ fun CambioTitularidadScreen(
 
             CapturaFotoTitularidad("Documento del nuevo usuario · frente", "doc_frente_$claveCaptura", fotoFrente, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, {
                 solicitarPermisoUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-            }, mostrarCoordenadasManuales = false) { ruta, _ -> fotoFrente?.takeIf { it != ruta }?.let { File(it).delete() }; fotoFrente = ruta }
+            }) { ruta, _ -> fotoFrente?.takeIf { it != ruta }?.let { File(it).delete() }; fotoFrente = ruta }
             CapturaFotoTitularidad("Documento del nuevo usuario · reverso", "doc_reverso_$claveCaptura", fotoReverso, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, {
                 solicitarPermisoUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-            }, mostrarCoordenadasManuales = false) { ruta, _ -> fotoReverso?.takeIf { it != ruta }?.let { File(it).delete() }; fotoReverso = ruta }
+            }) { ruta, _ -> fotoReverso?.takeIf { it != ruta }?.let { File(it).delete() }; fotoReverso = ruta }
             CapturaFotoTitularidad("Huella dactilar sobre papel blanco", "huella_$claveCaptura", fotoHuella, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, {
                 solicitarPermisoUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-            }, mostrarCoordenadasManuales = false) { ruta, _ -> fotoHuella?.takeIf { it != ruta }?.let { File(it).delete() }; fotoHuella = ruta }
+            }) { ruta, _ -> fotoHuella?.takeIf { it != ruta }?.let { File(it).delete() }; fotoHuella = ruta }
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -427,7 +418,6 @@ internal fun CapturaFotoTitularidad(
     ubicacionPermitida: Boolean,
     onSolicitarPermisoUbicacion: () -> Unit,
     subdirectorio: String = "cambio_titularidad",
-    mostrarCoordenadasManuales: Boolean = true,
     onFotoCapturada: (String, Location) -> Unit
 ) {
     val context = LocalContext.current
@@ -437,21 +427,6 @@ internal fun CapturaFotoTitularidad(
     var ubicacionPendiente by remember { mutableStateOf<Location?>(null) }
     var procesando by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var latitudManual by rememberSaveable(codigoSisfv, nombreArchivo) { mutableStateOf("") }
-    var longitudManual by rememberSaveable(codigoSisfv, nombreArchivo) { mutableStateOf("") }
-    var coordenadasManualesConfirmadas by rememberSaveable(codigoSisfv, nombreArchivo) { mutableStateOf(false) }
-    val ubicacionManual = remember(coordenadasManualesConfirmadas, latitudManual, longitudManual) {
-        if (!coordenadasManualesConfirmadas) null else {
-            val latitud = latitudManual.toDoubleOrNull()
-            val longitud = longitudManual.toDoubleOrNull()
-            if (latitud == null || longitud == null) null else Location("manual").apply {
-                latitude = latitud
-                this.longitude = longitud
-                accuracy = 0f
-                time = System.currentTimeMillis()
-            }
-        }
-    }
 
     val solicitarPermisoCamara = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -525,58 +500,20 @@ internal fun CapturaFotoTitularidad(
             )
             Text(
                 text = when {
-                    ubicacionManual != null || ubicacionActual?.provider == "manual" -> "Coordenadas manuales confirmadas para esta foto."
+                    ubicacionActual?.provider == "manual" -> "Coordenadas confirmadas en la sección de ubicación del formulario."
                     ubicacionGpsReciente(ubicacionActual) -> "GPS listo · ${ubicacionActual?.latitude}, ${ubicacionActual?.longitude}"
-                    else -> "Ingresa y confirma las coordenadas antes de tomar la fotografía, o espera una ubicación GPS reciente."
+                    else -> "Confirma la ubicación en la sección superior del formulario antes de tomar la fotografía."
                 },
                 style = MaterialTheme.typography.bodySmall
             )
-            if (mostrarCoordenadasManuales) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = latitudManual,
-                    onValueChange = { latitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Latitud") },
-                    placeholder = { Text("7.3345") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = longitudManual,
-                    onValueChange = { longitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Longitud") },
-                    placeholder = { Text("-76.1212") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            }
-                Button(
-                onClick = {
-                    val formato = Regex("^-?\\d+\\.\\d{4}$")
-                    val latitud = latitudManual.toDoubleOrNull()
-                    val longitud = longitudManual.toDoubleOrNull()
-                    if (!formato.matches(latitudManual) || !formato.matches(longitudManual) ||
-                        latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
-                    ) {
-                        error = "Ingrese latitud y longitud válidas con punto y 4 decimales."
-                    } else {
-                        coordenadasManualesConfirmadas = true
-                        error = null
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-                ) { Text(if (ubicacionManual != null) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
-            }
             Button(
                 onClick = {
                     error = null
-                    val ubicacionCaptura = ubicacionManual ?: ubicacionActual
-                    if (ubicacionManual == null && !ubicacionPermitida) {
+                    val ubicacionCaptura = ubicacionActual
+                    if (!ubicacionPermitida && !ubicacionGpsReciente(ubicacionActual)) {
                         onSolicitarPermisoUbicacion()
-                        error = "Autoriza la ubicación GPS o confirma coordenadas manuales antes de tomar la foto."
-                    } else if (ubicacionManual == null && !ubicacionGpsReciente(ubicacionActual)) {
+                        error = "Autoriza la ubicación GPS o confirma coordenadas manuales en la sección superior antes de tomar la foto."
+                    } else if (!ubicacionGpsReciente(ubicacionActual)) {
                         error = "No hay una ubicación GPS reciente. Activa la ubicación y espera una posición antes de tomar la foto."
                     } else if (!camaraPermitida) {
                         solicitarPermisoCamara.launch(Manifest.permission.CAMERA)

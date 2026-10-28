@@ -86,6 +86,14 @@ fun CambioComponenteScreen(
     var ubicacionGps by remember { mutableStateOf<Location?>(null) }
     var mostrarConfirmacion by rememberSaveable(sistema.id) { mutableStateOf(false) }
 
+    // Ubicación manual confirmada una sola vez para todas las fotografías.
+    var coordenadasManualesConfirmadas by rememberSaveable(sistema.id) { mutableStateOf(false) }
+    var latitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var longitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
+    var ubicacionManual by remember { mutableStateOf<Location?>(null) }
+    val ubicacionParaFotos = ubicacionManual ?: ubicacionGps
+    val permisoUbicacionParaFotos = ubicacionPermitida || coordenadasManualesConfirmadas
+
     val solicitarPermisoUbicacion = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permisos ->
@@ -209,26 +217,39 @@ fun CambioComponenteScreen(
             )
 
             Text("2. Evidencias fotográficas obligatorias", style = MaterialTheme.typography.titleMedium, color = SolarPrimary, fontWeight = FontWeight.Bold)
-            Text(
-                when {
-                    !ubicacionPermitida -> "Permite la ubicación para añadir coordenadas GPS a cada fotografía."
-                    ubicacionGps != null && ubicacionGps?.let(::ubicacionGpsReciente) == true -> "GPS listo: ±${ubicacionGps?.accuracy?.toInt()} m"
-                    else -> "GPS buscando una ubicación reciente."
-                }, style = MaterialTheme.typography.bodySmall
-            )
             val pedirUbicacion = {
                 solicitarPermisoUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
             }
+            SeccionUbicacionFotos(
+                codigoSisfv = sistema.codigoSisfv,
+                ubicacionEfectiva = ubicacionParaFotos,
+                ubicacionPermitida = ubicacionPermitida,
+                manualConfirmado = coordenadasManualesConfirmadas,
+                latitud = latitudManual,
+                longitud = longitudManual,
+                habilitado = !uiState.isSaving,
+                onLatitudChange = { latitudManual = it },
+                onLongitudChange = { longitudManual = it },
+                onConfirmar = { manual ->
+                    ubicacionManual = manual
+                    coordenadasManualesConfirmadas = true
+                },
+                onCorregir = {
+                    coordenadasManualesConfirmadas = false
+                    ubicacionManual = null
+                },
+                onSolicitarPermiso = { pedirUbicacion() }
+            )
             val esPaneles = componente == "Paneles"
-            CapturaFotoTitularidad(if (esPaneles) "Panel viejo 1" else "Componente malo", if (esPaneles) "panel_viejo_1" else "componente_malo", fotoMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> fotoMalo = path }
-            CapturaFotoTitularidad(if (esPaneles) "Serial del panel viejo 1" else "Serial del componente malo", if (esPaneles) "serial_panel_viejo_1" else "serial_componente_malo", serialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> serialMalo = path }
-            CapturaFotoTitularidad(if (esPaneles) "Panel nuevo 1" else "Componente nuevo", if (esPaneles) "panel_nuevo_1" else "componente_nuevo", fotoNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> fotoNuevo = path }
-            CapturaFotoTitularidad(if (esPaneles) "Serial del panel nuevo 1" else "Serial del componente nuevo", if (esPaneles) "serial_panel_nuevo_1" else "serial_componente_nuevo", serialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> serialNuevo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Panel viejo 1" else "Componente malo", if (esPaneles) "panel_viejo_1" else "componente_malo", fotoMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> fotoMalo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Serial del panel viejo 1" else "Serial del componente malo", if (esPaneles) "serial_panel_viejo_1" else "serial_componente_malo", serialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> serialMalo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Panel nuevo 1" else "Componente nuevo", if (esPaneles) "panel_nuevo_1" else "componente_nuevo", fotoNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> fotoNuevo = path }
+            CapturaFotoTitularidad(if (esPaneles) "Serial del panel nuevo 1" else "Serial del componente nuevo", if (esPaneles) "serial_panel_nuevo_1" else "serial_componente_nuevo", serialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> serialNuevo = path }
             if (esPaneles) {
-                CapturaFotoTitularidad("Panel viejo 2", "panel_viejo_2", segundoPanelMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelMalo = path }
-                CapturaFotoTitularidad("Serial del panel viejo 2", "serial_panel_viejo_2", segundoSerialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialMalo = path }
-                CapturaFotoTitularidad("Panel nuevo 2", "panel_nuevo_2", segundoPanelNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelNuevo = path }
-                CapturaFotoTitularidad("Serial del panel nuevo 2", "serial_panel_nuevo_2", segundoSerialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionGps, ubicacionPermitida, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialNuevo = path }
+                CapturaFotoTitularidad("Panel viejo 2", "panel_viejo_2", segundoPanelMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelMalo = path }
+                CapturaFotoTitularidad("Serial del panel viejo 2", "serial_panel_viejo_2", segundoSerialMalo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialMalo = path }
+                CapturaFotoTitularidad("Panel nuevo 2", "panel_nuevo_2", segundoPanelNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> segundoPanelNuevo = path }
+                CapturaFotoTitularidad("Serial del panel nuevo 2", "serial_panel_nuevo_2", segundoSerialNuevo, sistema.codigoSisfv, sistema.nui, tecnico, ubicacionParaFotos, permisoUbicacionParaFotos, pedirUbicacion, "cambio_componente") { path, _ -> segundoSerialNuevo = path }
             }
 
             Card(Modifier.fillMaxWidth()) {

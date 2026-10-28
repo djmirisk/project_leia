@@ -103,7 +103,6 @@ fun ReporteHurtoScreen(
     var longitudManual by rememberSaveable(sistema.id) { mutableStateOf("") }
     var coordenadasManualesConfirmadas by rememberSaveable(sistema.id) { mutableStateOf(false) }
     var ubicacionFormulario by remember(sistema.id) { mutableStateOf<Location?>(null) }
-    var errorCoordenadas by rememberSaveable { mutableStateOf<String?>(null) }
     var camaraPermitida by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -115,18 +114,6 @@ fun ReporteHurtoScreen(
     var precisionPendiente by rememberSaveable { mutableStateOf<String?>(null) }
     var coordenadasPendientesManuales by rememberSaveable { mutableStateOf(false) }
     var procesandoFoto by rememberSaveable { mutableStateOf(false) }
-    val ubicacionManual = remember(coordenadasManualesConfirmadas, latitudManual, longitudManual) {
-        if (!coordenadasManualesConfirmadas) null else {
-            val latitud = latitudManual.toDoubleOrNull()
-            val longitud = longitudManual.toDoubleOrNull()
-            if (latitud == null || longitud == null) null else Location("manual").apply {
-                latitude = latitud
-                this.longitude = longitud
-                accuracy = 0f
-                time = System.currentTimeMillis()
-            }
-        }
-    }
 
     val solicitarPermisoCamara = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permitido ->
         camaraPermitida = permitido
@@ -201,21 +188,20 @@ fun ReporteHurtoScreen(
 
     fun tomar(codigo: String, titulo: String) {
         error = null
-        val ubicacion = ubicacionFormulario ?: ubicacionManual ?: estadoUbicacion.ubicacion
-        if (ubicacionFormulario == null && ubicacionManual == null && !estadoUbicacion.permisoConcedido) {
+        val ubicacion = ubicacionFormulario ?: estadoUbicacion.ubicacion
+        if (ubicacionFormulario == null && !estadoUbicacion.permisoConcedido) {
             estadoUbicacion.solicitarPermiso()
-            error = "Permite la ubicación o ingresa y confirma las coordenadas antes de tomar la foto."
+            error = "Permite la ubicación o confirma las coordenadas manuales antes de tomar la foto."
             return
         }
-        if (ubicacionFormulario == null && ubicacionManual == null && !ubicacionGpsReciente(ubicacion)) {
-            error = "No hay GPS reciente. Ingresa y confirma las coordenadas manualmente para continuar."
+        if (!ubicacionGpsReciente(ubicacion)) {
+            error = "No hay una ubicación reciente. Confirma la ubicación en la sección superior antes de tomar la foto."
             return
         }
         if (ubicacion == null) {
-            error = "Confirma las coordenadas antes de tomar la primera foto."
+            error = "Confirma la ubicación antes de tomar la primera foto."
             return
         }
-        ubicacionFormulario = ubicacionFormulario ?: ubicacion
         if (!camaraPermitida) {
             solicitarPermisoCamara.launch(Manifest.permission.CAMERA)
             return
@@ -273,60 +259,26 @@ fun ReporteHurtoScreen(
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("${sistema.codigoSisfv} · ${sistema.nombreUsuario}", fontWeight = FontWeight.Bold)
             Text("Evidencias fotográficas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (ubicacionFormulario == null) {
-            Text(
-                when {
-                    ubicacionManual != null -> "Coordenadas manuales confirmadas; se incluirán en todas las marcas de agua."
-                    !estadoUbicacion.permisoConcedido -> "Permite GPS o confirma las coordenadas manuales para habilitar la cámara."
-                    ubicacionGpsReciente(estadoUbicacion.ubicacion) -> "GPS listo para marcar todas las fotografías."
-                    else -> "GPS buscando ubicación. También puedes ingresar coordenadas manuales."
+            SeccionUbicacionFotos(
+                codigoSisfv = sistema.codigoSisfv,
+                ubicacionEfectiva = ubicacionFormulario ?: estadoUbicacion.ubicacion,
+                ubicacionPermitida = estadoUbicacion.permisoConcedido,
+                manualConfirmado = coordenadasManualesConfirmadas,
+                latitud = latitudManual,
+                longitud = longitudManual,
+                habilitado = !procesandoFoto && !state.isSaving,
+                onLatitudChange = { latitudManual = it },
+                onLongitudChange = { longitudManual = it },
+                onConfirmar = { manual ->
+                    ubicacionFormulario = manual
+                    coordenadasManualesConfirmadas = true
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (ubicacionManual != null || ubicacionGpsReciente(estadoUbicacion.ubicacion)) SolarPrimary else MaterialTheme.colorScheme.error
+                onCorregir = {
+                    coordenadasManualesConfirmadas = false
+                    ubicacionFormulario = null
+                },
+                onSolicitarPermiso = { estadoUbicacion.solicitarPermiso() }
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = latitudManual,
-                    onValueChange = { latitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false; errorCoordenadas = null },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Latitud") }, placeholder = { Text("7.3345") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = longitudManual,
-                    onValueChange = { longitudManual = filtrarEntradaCoordenada(it); coordenadasManualesConfirmadas = false; errorCoordenadas = null },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Longitud") }, placeholder = { Text("-76.1212") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            }
-            Button(
-                onClick = {
-                    val formato = Regex("^-?\\d+\\.\\d{4}$")
-                    val latitud = latitudManual.toDoubleOrNull()
-                    val longitud = longitudManual.toDoubleOrNull()
-                    if (!formato.matches(latitudManual) || !formato.matches(longitudManual) ||
-                        latitud == null || longitud == null || latitud !in -90.0..90.0 || longitud !in -180.0..180.0
-                    ) {
-                        errorCoordenadas = "Ingrese latitud y longitud válidas con punto y 4 decimales."
-                    } else {
-                        coordenadasManualesConfirmadas = true
-                        ubicacionFormulario = ubicacionManual
-                        errorCoordenadas = null
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !procesandoFoto
-            ) { Text(if (ubicacionManual != null) "COORDENADAS CONFIRMADAS" else "CONFIRMAR COORDENADAS") }
-            if (!estadoUbicacion.permisoConcedido && ubicacionManual == null) {
-                TextButton(onClick = estadoUbicacion.solicitarPermiso) { Text("PERMITIR UBICACIÓN GPS") }
-            }
-            errorCoordenadas?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            } else {
-                ubicacionFormulario?.let { ubicacion ->
-                    Text("Coordenadas listas para todas las fotografÃ­as: ${"%.4f".format(ubicacion.latitude)}, ${"%.4f".format(ubicacion.longitude)}")
-                }
-            }
             fotosHurto.forEach { (codigo, titulo) ->
                 Button(
                     onClick = { tomar(codigo, titulo) },
@@ -351,7 +303,7 @@ fun ReporteHurtoScreen(
                 minLines = 4
             )
             OutlinedTextField(nombre, { nombre = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo de quien reporta") }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
-            OutlinedTextField(documento, { documento = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Documento de identidad") }, singleLine = true)
+            OutlinedTextField(documento, { documento = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Documento de identidad") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next))
             Text("¿Quien reporta el hurto es el titular?")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OpcionRadio("Sí", seleccionado = esTitular == true, onClick = { esTitular = true })
