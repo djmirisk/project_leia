@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.solaresenergy.sisfv.data.local.entity.SistemaSisfvEntity
@@ -525,6 +526,16 @@ fun FormularioMantenimientoScreen(
     var correoContactoPropuesto by rememberSaveable(sistema.id) {
         mutableStateOf("")
     }
+
+    // El técnico decide si actualiza los datos de contacto; si acepta, se abren
+    // los campos en un diálogo y ambos datos quedan obligatorios.
+    var deseaActualizarContacto by rememberSaveable(sistema.id) {
+        mutableStateOf<Boolean?>(null)
+    }
+
+    var mostrarDialogoContacto by rememberSaveable(sistema.id) {
+        mutableStateOf(false)
+    }
     // Catálogo obligatorio de 18 evidencias fotográficas
     var fotosCapturadas by rememberSaveable(sistema.id, stateSaver = fotosMantenimientoSaver) {
         mutableStateOf<List<FotoMantenimientoCapturada>>(emptyList())
@@ -568,6 +579,94 @@ fun FormularioMantenimientoScreen(
             },
             dismissButton = {
                 TextButton(onClick = { mostrarConfirmacionSalida = false }) { Text("CONTINUAR DILIGENCIANDO") }
+            }
+        )
+    }
+
+    if (mostrarDialogoContacto) {
+        var telefonoTemporal by remember { mutableStateOf(telefonoContactoPropuesto) }
+        var correoTemporal by remember { mutableStateOf(correoContactoPropuesto) }
+        var errorContacto by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = {
+                mostrarDialogoContacto = false
+                if (telefonoContactoPropuesto.isBlank()) {
+                    deseaActualizarContacto = false
+                }
+            },
+            title = { Text("Datos de contacto del usuario") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ingrese el nuevo teléfono del usuario. El correo electrónico es opcional.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = telefonoTemporal,
+                        onValueChange = { entrada ->
+                            telefonoTemporal = entrada.filter(Char::isDigit).take(10)
+                            errorContacto = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Nuevo teléfono") },
+                        placeholder = { Text("3001234567") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Phone,
+                            imeAction = ImeAction.Next
+                        )
+                    )
+                    OutlinedTextField(
+                        value = correoTemporal,
+                        onValueChange = {
+                            correoTemporal = it
+                            errorContacto = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Correo electrónico (opcional)") },
+                        placeholder = { Text("usuario@correo.com") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    errorContacto?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val telefono = telefonoTemporal.trim()
+                    val correo = correoTemporal.trim()
+                    val error = when {
+                        telefono.isBlank() -> "Ingrese el nuevo teléfono del usuario."
+                        telefono.length != 10 ->
+                            "El teléfono debe tener 10 dígitos."
+                        correo.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(correo).matches() ->
+                            "Ingrese un correo electrónico válido o déjelo vacío."
+                        else -> null
+                    }
+                    errorContacto = error
+                    if (error == null) {
+                        telefonoContactoPropuesto = telefono
+                        correoContactoPropuesto = correo
+                        deseaActualizarContacto = true
+                        mostrarDialogoContacto = false
+                        errorFormulario = null
+                    }
+                }) { Text("GUARDAR") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    mostrarDialogoContacto = false
+                    if (telefonoContactoPropuesto.isBlank()) {
+                        deseaActualizarContacto = false
+                    }
+                }) { Text("CANCELAR") }
             }
         )
     }
@@ -701,50 +800,54 @@ fun FormularioMantenimientoScreen(
                     )
 
                     Text(
-                        text = "Registre el nuevo teléfono del usuario. " +
-                                "El correo electrónico es opcional. " +
-                                "Deje los campos vacíos si no hay cambios.",
+                        text = "¿Desea actualizar los datos de contacto del usuario? " +
+                                "El teléfono es obligatorio y el correo electrónico es opcional.",
                         style = MaterialTheme.typography.bodySmall
                     )
 
-                    OutlinedTextField(
-                        value = telefonoContactoPropuesto,
-                        onValueChange = { entrada ->
-                            telefonoContactoPropuesto = entrada
-                            errorFormulario = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = {
-                            Text("Nuevo teléfono del usuario")
-                        },
-                        placeholder = {
-                            Text("Ingrese el número de contacto")
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Phone,
-                            imeAction = ImeAction.Next
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OpcionRadio(
+                            texto = "Sí, actualizar",
+                            seleccionado = deseaActualizarContacto == true,
+                            onClick = {
+                                deseaActualizarContacto = true
+                                mostrarDialogoContacto = true
+                                errorFormulario = null
+                            }
                         )
-                    )
+                        Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+                        OpcionRadio(
+                            texto = "No",
+                            seleccionado = deseaActualizarContacto == false,
+                            onClick = {
+                                deseaActualizarContacto = false
+                                mostrarDialogoContacto = false
+                                telefonoContactoPropuesto = ""
+                                correoContactoPropuesto = ""
+                                errorFormulario = null
+                            }
+                        )
+                    }
 
-                    OutlinedTextField(
-                        value = correoContactoPropuesto,
-                        onValueChange = { entrada ->
-                            correoContactoPropuesto = entrada
-                            errorFormulario = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = {
-                            Text("Correo electrónico (opcional)")
-                        },
-                        placeholder = {
-                            Text("usuario@correo.com")
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email
+                    if (deseaActualizarContacto == true &&
+                        telefonoContactoPropuesto.isNotBlank()
+                    ) {
+                        Text(
+                            text = "Nuevo teléfono: $telefonoContactoPropuesto",
+                            style = MaterialTheme.typography.bodySmall
                         )
-                    )
+                        Text(
+                            text = if (correoContactoPropuesto.isBlank()) {
+                                "Correo electrónico: no registrado"
+                            } else {
+                                "Correo electrónico: $correoContactoPropuesto"
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        TextButton(onClick = { mostrarDialogoContacto = true }) {
+                            Text("EDITAR DATOS DE CONTACTO")
+                        }
+                    }
                 }
             }
 
@@ -1735,11 +1838,12 @@ fun FormularioMantenimientoScreen(
 
             OutlinedTextField(
                 value = nombreReceptorFirma,
-                onValueChange = { nombreReceptorFirma = it },
+                onValueChange = { nombreReceptorFirma = capitalizarNombre(it) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Nombre completo de quien recibe") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                enabled = receptorEsTitular != true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next)
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -1748,6 +1852,7 @@ fun FormularioMantenimientoScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Documento de identidad de quien recibe") },
                 singleLine = true,
+                enabled = receptorEsTitular != true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -1759,13 +1864,25 @@ fun FormularioMantenimientoScreen(
                 OpcionRadio(
                     texto = "Sí",
                     seleccionado = receptorEsTitular == true,
-                    onClick = { receptorEsTitular = true }
+                    onClick = {
+                        receptorEsTitular = true
+                        nombreReceptorFirma = ""
+                        documentoReceptorFirma = ""
+                        errorFormulario = null
+                    }
                 )
                 Spacer(modifier = Modifier.padding(horizontal = 8.dp))
                 OpcionRadio(
                     texto = "No",
                     seleccionado = receptorEsTitular == false,
                     onClick = { receptorEsTitular = false }
+                )
+            }
+            if (receptorEsTitular == true) {
+                Text(
+                    text = "Se registrarán los datos del titular del SISFV: ${sistema.nombreUsuario} · ${sistema.documentoUsuario ?: "documento no registrado"}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SolarPrimary
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -1839,14 +1956,22 @@ fun FormularioMantenimientoScreen(
                     val correoPropuesto = correoContactoPropuesto.trim()
 
                     when {
+                        deseaActualizarContacto == null -> {
+                            errorFormulario = "Indique si desea actualizar los datos de contacto del usuario."
+                        }
+
+                        deseaActualizarContacto == true && telefonoPropuesto.isEmpty() -> {
+                            errorFormulario = "Ingrese el nuevo teléfono del usuario o indique que no desea actualizar los datos."
+                        }
+
                         correoPropuesto.isNotEmpty() && telefonoPropuesto.isEmpty() -> {
                             errorFormulario = "Para solicitar un cambio de correo también debe ingresar el nuevo teléfono."
                         }
 
                         telefonoPropuesto.isNotEmpty() &&
                                 (!telefonoPropuesto.matches(Regex("^[+0-9() .-]+$")) ||
-                                        telefonoPropuesto.count(Char::isDigit) !in 7..15) -> {
-                            errorFormulario = "Ingrese un teléfono válido de 7 a 15 dígitos."
+                                        telefonoPropuesto.count(Char::isDigit) != 10) -> {
+                            errorFormulario = "El teléfono debe tener 10 dígitos."
                         }
 
                         correoPropuesto.isNotEmpty() &&
@@ -1907,16 +2032,29 @@ fun FormularioMantenimientoScreen(
                             errorFormulario = "Debe tomar la fotografía de respaldo del código activo."
                         }
 
-                        nombreReceptorFirma.isBlank() -> {
+                        receptorEsTitular == null -> {
+                            errorFormulario = "Indique si la persona que recibe es el titular del SISFV."
+                        }
+
+                        receptorEsTitular == false && nombreReceptorFirma.isBlank() -> {
                             errorFormulario = "Ingrese el nombre completo de la persona que recibe la visita."
                         }
 
-                        documentoReceptorFirma.isBlank() -> {
+                        receptorEsTitular == false && documentoReceptorFirma.isBlank() -> {
                             errorFormulario = "Ingrese el documento de identidad de la persona que recibe la visita."
                         }
 
-                        receptorEsTitular == null -> {
-                            errorFormulario = "Indique si la persona que recibe es el titular del SISFV."
+                        receptorEsTitular == false &&
+                                nombreReceptorFirma.trim().equals(sistema.nombreUsuario.trim(), ignoreCase = true) -> {
+                            errorFormulario =
+                                "El nombre de quien recibe no puede ser el del titular registrado. Si lo es, marque «Sí» como titular."
+                        }
+
+                        receptorEsTitular == false &&
+                                !sistema.documentoUsuario.isNullOrBlank() &&
+                                documentoReceptorFirma.trim() == sistema.documentoUsuario?.trim() -> {
+                            errorFormulario =
+                                "El documento de quien recibe no puede ser el del titular registrado. Si lo es, marque «Sí» como titular."
                         }
 
                         !firmaValida(firmaUsuarioPath) -> {

@@ -63,9 +63,9 @@ class CambioTitularidadViewModel(application: Application) : AndroidViewModel(ap
                 }
                 if (telefonoNuevo.isBlank() ||
                     !telefonoNuevo.matches(Regex("^[+0-9() .-]+$")) ||
-                    telefonoNuevo.count(Char::isDigit) !in 7..15
+                    telefonoNuevo.count(Char::isDigit) != 10
                 ) {
-                    throw IllegalArgumentException("Ingrese un teléfono válido de 7 a 15 dígitos.")
+                    throw IllegalArgumentException("El teléfono debe tener 10 dígitos.")
                 }
                 if (correoNuevo.isNotBlank() &&
                     !Patterns.EMAIL_ADDRESS.matcher(correoNuevo).matches()

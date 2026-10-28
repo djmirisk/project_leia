@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -251,9 +252,9 @@ fun CambioTitularidadScreen(
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("1. Datos del nuevo usuario", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SolarPrimary)
                     HorizontalDivider()
-                    OutlinedTextField(value = nombreNuevo, onValueChange = { nombreNuevo = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo") }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
+                    OutlinedTextField(value = nombreNuevo, onValueChange = { nombreNuevo = capitalizarNombre(it) }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo") }, singleLine = true, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next))
                     OutlinedTextField(value = documentoNuevo, onValueChange = { documentoNuevo = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Número de documento") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next))
-                    OutlinedTextField(value = telefonoNuevo, onValueChange = { telefonoNuevo = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Número de teléfono") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next))
+                    OutlinedTextField(value = telefonoNuevo, onValueChange = { telefonoNuevo = it.filter(Char::isDigit).take(10) }, modifier = Modifier.fillMaxWidth(), label = { Text("Número de teléfono (10 dígitos)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next))
                     OutlinedTextField(value = correoNuevo, onValueChange = { correoNuevo = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Correo electrónico (opcional)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next))
                     OutlinedTextField(value = motivo, onValueChange = { motivo = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Motivo del cambio de titularidad") }, minLines = 3)
                 }

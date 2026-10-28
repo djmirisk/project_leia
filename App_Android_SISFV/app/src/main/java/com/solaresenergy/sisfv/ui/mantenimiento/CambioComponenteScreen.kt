@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -256,12 +257,38 @@ fun CambioComponenteScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("3. Responsable de la visita", style = MaterialTheme.typography.titleMedium, color = SolarPrimary, fontWeight = FontWeight.Bold)
                     Text("La persona presente puede ser distinta del titular registrado. Identifique a quien recibe la visita.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(nombreReceptor, { nombreReceptor = it }, Modifier.fillMaxWidth(), label = { Text("Nombre completo") }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), singleLine = true)
-                    OutlinedTextField(documentoReceptor, { documentoReceptor = it }, Modifier.fillMaxWidth(), label = { Text("Número de documento") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                    val esTitularReceptor = receptorEsTitular == true
+                    OutlinedTextField(
+                        nombreReceptor, { nombreReceptor = capitalizarNombre(it) },
+                        Modifier.fillMaxWidth(),
+                        label = { Text("Nombre completo") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                        singleLine = true,
+                        enabled = !esTitularReceptor
+                    )
+                    OutlinedTextField(
+                        documentoReceptor, { documentoReceptor = it },
+                        Modifier.fillMaxWidth(),
+                        label = { Text("Número de documento") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        enabled = !esTitularReceptor
+                    )
                     Text("¿La persona que recibe es el titular del SISFV?")
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        OpcionRadio("Sí", seleccionado = receptorEsTitular == true, onClick = { receptorEsTitular = true })
+                        OpcionRadio("Sí", seleccionado = receptorEsTitular == true, onClick = {
+                            receptorEsTitular = true
+                            nombreReceptor = ""
+                            documentoReceptor = ""
+                        })
                         OpcionRadio("No", seleccionado = receptorEsTitular == false, onClick = { receptorEsTitular = false })
+                    }
+                    if (esTitularReceptor) {
+                        Text(
+                            "Se registrarán los datos del titular del SISFV: ${sistema.nombreUsuario} · ${sistema.documentoUsuario ?: "documento no registrado"}.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SolarPrimary
+                        )
                     }
                 }
             }

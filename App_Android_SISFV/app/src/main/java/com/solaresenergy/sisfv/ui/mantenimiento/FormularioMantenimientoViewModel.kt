@@ -343,9 +343,9 @@ class FormularioMantenimientoViewModel(
                 }
                 if (telefonoPropuesto.isNotEmpty() &&
                     (!telefonoPropuesto.matches(Regex("^[+0-9() .-]+$")) ||
-                            telefonoPropuesto.count(Char::isDigit) !in 7..15)
+                            telefonoPropuesto.count(Char::isDigit) != 10)
                 ) {
-                    throw IllegalArgumentException("Ingrese un teléfono válido de 7 a 15 dígitos.")
+                    throw IllegalArgumentException("El teléfono debe tener 10 dígitos.")
                 }
                 if (correoPropuesto.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(correoPropuesto).matches()) {
                     throw IllegalArgumentException("Ingrese un correo electrónico válido.")
@@ -366,14 +366,40 @@ class FormularioMantenimientoViewModel(
                     )
                 }
 
-                if (datos.nombreReceptorFirma.isNullOrBlank()) {
-                    throw IllegalArgumentException("Falta el nombre de la persona que recibe la visita.")
+                val esTitularVisita = datos.receptorEsTitular
+                    ?: throw IllegalArgumentException("Indique si la persona que recibe es el titular del SISFV.")
+
+                // Si quien recibe es el titular no se diligencian nombre ni documento:
+                // se registran los datos maestros del SISFV.
+                val nombreReceptorVisita = if (esTitularVisita) {
+                    datos.nombreUsuario.trim()
+                } else {
+                    datos.nombreReceptorFirma?.trim().orEmpty()
                 }
-                if (datos.documentoReceptorFirma.isNullOrBlank()) {
-                    throw IllegalArgumentException("Falta el documento de la persona que recibe la visita.")
+                val documentoReceptorVisita = if (esTitularVisita) {
+                    datos.documentoUsuario?.trim().orEmpty()
+                } else {
+                    datos.documentoReceptorFirma?.trim().orEmpty()
                 }
-                if (datos.receptorEsTitular == null) {
-                    throw IllegalArgumentException("Indique si la persona que recibe es el titular del SISFV.")
+                if (!esTitularVisita) {
+                    if (nombreReceptorVisita.isBlank()) {
+                        throw IllegalArgumentException("Falta el nombre de la persona que recibe la visita.")
+                    }
+                    if (documentoReceptorVisita.isBlank()) {
+                        throw IllegalArgumentException("Falta el documento de la persona que recibe la visita.")
+                    }
+                    if (nombreReceptorVisita.equals(datos.nombreUsuario.trim(), ignoreCase = true)) {
+                        throw IllegalArgumentException(
+                            "El nombre de quien recibe no puede ser el del titular registrado. Si es el titular, márquelo en el formulario."
+                        )
+                    }
+                    if (!datos.documentoUsuario.isNullOrBlank() &&
+                        documentoReceptorVisita == datos.documentoUsuario?.trim()
+                    ) {
+                        throw IllegalArgumentException(
+                            "El documento de quien recibe no puede ser el del titular registrado. Si es el titular, márquelo en el formulario."
+                        )
+                    }
                 }
                 listOf(
                     "firma de la persona que recibe" to datos.firmaUsuarioPath,
@@ -533,8 +559,8 @@ class FormularioMantenimientoViewModel(
                             "Bombillo apagado durante la prueba de funcionamiento."
                         } else null,
                         bombilloEncendido = datos.bombilloEncendido,
-                        nombreReceptorFirma = datos.nombreReceptorFirma?.trim(),
-                        documentoReceptorFirma = datos.documentoReceptorFirma?.trim(),
+                        nombreReceptorFirma = nombreReceptorVisita.ifBlank { null },
+                        documentoReceptorFirma = documentoReceptorVisita.ifBlank { null },
                         receptorEsTitular = datos.receptorEsTitular
                     )
 

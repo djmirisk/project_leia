@@ -50,14 +50,35 @@ class CambioComponenteViewModel(application: Application) : AndroidViewModel(app
             try {
                 val componente = datos.componente.trim()
                 val causa = datos.causaFallo.trim()
-                val nombre = datos.nombreReceptor.trim()
-                val documento = datos.documentoReceptor.trim()
                 if (componente.isBlank()) throw IllegalArgumentException("Seleccione el componente mayor que fue reemplazado.")
                 if (causa.isBlank()) throw IllegalArgumentException("Indique causa del fallo.")
-                if (nombre.isBlank()) throw IllegalArgumentException("Ingrese el nombre de la persona responsable de la visita.")
-                if (documento.isBlank()) throw IllegalArgumentException("Ingrese el documento de la persona responsable de la visita.")
                 val esTitular = datos.receptorEsTitular
                     ?: throw IllegalArgumentException("Indique si la persona que recibe es el titular del SISFV.")
+
+                // Si quien recibe es el titular no se diligencia nada: se registran sus datos maestros.
+                // Si no lo es, nombre y documento son obligatorios y deben diferir del titular.
+                val nombreTitular = sistema.nombreUsuario.trim()
+                val documentoTitular = sistema.documentoUsuario?.trim().orEmpty()
+                val nombre = if (esTitular) nombreTitular else datos.nombreReceptor.trim()
+                val documento = if (esTitular) documentoTitular else datos.documentoReceptor.trim()
+                if (!esTitular) {
+                    if (nombre.isBlank()) {
+                        throw IllegalArgumentException("Ingrese el nombre de la persona responsable de la visita.")
+                    }
+                    if (documento.isBlank()) {
+                        throw IllegalArgumentException("Ingrese el documento de la persona responsable de la visita.")
+                    }
+                    if (nombre.equals(nombreTitular, ignoreCase = true)) {
+                        throw IllegalArgumentException(
+                            "El nombre del receptor no puede ser el del titular registrado. Si quien recibe es el titular, seleccione «Sí»."
+                        )
+                    }
+                    if (documentoTitular.isNotEmpty() && documento == documentoTitular) {
+                        throw IllegalArgumentException(
+                            "El documento del receptor no puede ser el del titular registrado. Si quien recibe es el titular, seleccione «Sí»."
+                        )
+                    }
+                }
                 val fotos = listOf(
                     validarArchivo(datos.fotoComponenteMaloPath, "la fotografía del componente malo"),
                     validarArchivo(datos.fotoSerialMaloPath, "la fotografía del serial del componente malo"),

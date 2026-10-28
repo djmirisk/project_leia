@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -302,7 +303,7 @@ fun ReporteHurtoScreen(
                 placeholder = { Text("Describa el testimonio de quien reporta el hurto", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f)) },
                 minLines = 4
             )
-            OutlinedTextField(nombre, { nombre = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo de quien reporta") }, singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
+            OutlinedTextField(nombre, { nombre = capitalizarNombre(it) }, modifier = Modifier.fillMaxWidth(), label = { Text("Nombre completo de quien reporta") }, singleLine = true, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next))
             OutlinedTextField(documento, { documento = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Documento de identidad") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next))
             Text("¿Quien reporta el hurto es el titular?")
             Row(verticalAlignment = Alignment.CenterVertically) {
