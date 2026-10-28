@@ -17,3 +17,5 @@ local.properties
 *.apk
 *.aab
 sisfv_error.txt
+entrega/
+*.log
